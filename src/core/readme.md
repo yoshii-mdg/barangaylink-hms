@@ -1,4 +1,3 @@
-Dito 
 
 Config/
 Hooks/

@@ -1,6 +1,6 @@
 import { Link, useLocation } from 'react-router-dom'
 import { useState, useEffect } from 'react'
-import logo from  '../assets/images/logo.svg'
+import { Logo } from '../shared'
 
 export default function NavBar() {
   const [isScrolled, setIsScrolled] = useState(false);
@@ -44,17 +44,7 @@ export default function NavBar() {
     }`}>
       <div className="mx-12 px-5 flex justify-between items-center h-28">
         {/* Logo Section */}
-        <Link to="/" className={`flex items-center gap-3 font-bold hover:opacity-80 transition-opacity cursor-pointer ${
-          isScrolled ? 'text-white' : 'text-white'
-        }`}>
-          <div className="text-3xl">
-            <img src={logo} alt="BarangayLink Logo" className="w-16 h-16" />
-          </div>
-          <div className="flex flex-col gap-0.5">
-            <div className="text-xl font-extrabold tracking-wider">BARANGAYLINK</div>
-            <div className="text-xs font-normal text-teal-100 tracking-wider hidden md:block">Resident and House Registry</div>
-          </div>
-        </Link>
+        <Logo variant="navbar" />
 
         {/* Navigation Links */}
         <div className="hidden md:flex gap-30">

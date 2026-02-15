@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { LandingPage, Privacy, Terms, Contact } from '../features/landing'
-import { ScrollToTop } from "../shared/components";
+import { ScrollToTop } from "../shared";
 import { Login, SignUp, ForgotPassword } from '../features/auth'
 
 function AppRoutes() {

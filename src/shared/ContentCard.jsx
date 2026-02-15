@@ -1,4 +1,4 @@
-import Checklist from '../../assets/icons/check-list.svg'
+import Checklist from '../assets/icons/check-list.svg'
 
 /**
  * Reusable content card with optional title, intro paragraph, and checkmark list.

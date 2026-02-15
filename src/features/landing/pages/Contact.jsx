@@ -1,6 +1,6 @@
 import { NavBar } from '../../../layout'
 import { Footer } from '../../../layout'
-import { Background } from '../../../shared/components'
+import { Background } from '../../../shared'
 import Location from '../../../assets/icons/location.svg'
 import PhoneNo from '../../../assets/icons/phone-no.svg'
 import Phone from '../../../assets/icons/phone.svg'

@@ -1,5 +1,5 @@
 import Carousel from './Carousel';
-import { Background } from '../../../shared/components';
+import { Background } from '../../../shared';
 
 export default function Hero() {
     return (

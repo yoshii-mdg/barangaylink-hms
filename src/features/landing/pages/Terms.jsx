@@ -1,7 +1,7 @@
 import { NavBar } from '../../../layout'
 import { Footer } from '../../../layout'
-import { Background } from '../../../shared/components'
-import { ContentCard } from '../../../shared/components'
+import { Background } from '../../../shared'
+import { ContentCard } from '../../../shared'
 
 export default function Terms() {
   return (

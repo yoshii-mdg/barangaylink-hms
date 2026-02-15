@@ -1,6 +1,6 @@
 import { NavBar } from '../../../layout'
 import { Footer } from '../../../layout'
-import { Background } from '../../../shared/components'
+import { Background } from '../../../shared'
 import InformationUser from '../../../assets/icons/information-users.svg'
 import Checklist from '../../../assets/icons/check-list.svg'
 import Protect from '../../../assets/icons/protect-users.svg'

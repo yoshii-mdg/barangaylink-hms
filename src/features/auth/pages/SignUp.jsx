@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { Background, Logo } from '../../../shared';
-import { RegisterForm } from '../components';
+import { RegisterForm } from '../components/';
 
 export default function SignUp() {
   const handleSubmit = (_data) => {

@@ -6,7 +6,7 @@ export default function Hero() {
         <Background>
                 
                 {/* Top Section - Text */}
-                <div className="flex items-center justify-between gap-x-12 mb-16">
+                <div className="flex items-center justify-between lg:mt-23 md:mt-30">
                     
                     {/* Left Section */}
                     <div className="flex-1">

@@ -1,10 +1,24 @@
-import { Link } from 'react-router-dom';
+import { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { Background, Logo } from '../../../shared';
 import { LoginForm } from '../components';
 
 export default function Login() {
-  const handleSubmit = () => {
-    // TODO: connect to auth
+  const navigate = useNavigate();
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+
+  const handleSubmit = async () => {
+    // TODO: connect to real auth API
+    if (isLoggingIn) return;
+
+    setIsLoggingIn(true);
+    try {
+      // Simulate request latency until auth is connected
+      await new Promise((resolve) => setTimeout(resolve, 800));
+      navigate('/dashboard');
+    } finally {
+      setIsLoggingIn(false);
+    }
   };
 
   return (
@@ -38,7 +52,7 @@ export default function Login() {
       <section className="flex-1 bg-gray-50 min-h-[50vh] flex items-start justify-center  md:-mt-90 relative z-20">
         <div className="absolute left-0 right-0 bottom-80 mx-auto w-full max-w-md">
           <div className="bg-white rounded-2xl shadow-lg p-6 md:p-8 border border-gray-100">
-            <LoginForm onSubmit={handleSubmit} />
+            <LoginForm onSubmit={handleSubmit} isLoading={isLoggingIn} />
 
             <p className="text-center text-gray-600 text-sm mt-6">
               Don&apos;t have an account?{' '}

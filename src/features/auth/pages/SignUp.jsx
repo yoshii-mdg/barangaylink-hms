@@ -1,57 +1,122 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Background, Logo } from '../../../shared';
-import { RegisterForm } from '../components/';
+import { AuthLayout, Logo } from '../../../shared';
+import {
+  RegisterForm,
+  EmailCredentialsForm,
+  PasswordForm,
+  SuccessStep,
+} from '../components/';
+
+const STEPS = {
+  PERSONAL: 1,
+  EMAIL: 2,
+  PASSWORD: 3,
+  SUCCESS: 4,
+};
+
+const BREADCRUMBS = {
+  [STEPS.PERSONAL]: ['HOME', 'PERSONAL INFORMATION'],
+  [STEPS.EMAIL]: ['HOME', 'PERSONAL INFORMATION', 'EMAIL CREDENTIALS'],
+  [STEPS.PASSWORD]: ['HOME', 'PERSONAL INFORMATION', 'EMAIL CREDENTIALS', 'PASSWORD'],
+  [STEPS.SUCCESS]: ['HOME', 'PERSONAL INFORMATION', 'EMAIL CREDENTIALS', 'PASSWORD'],
+};
 
 export default function SignUp() {
-  const handleSubmit = (_data) => {
-    // placeholder lang yung data ahh
+  const [step, setStep] = useState(STEPS.PERSONAL);
+  const [formData, setFormData] = useState({
+    lastName: '',
+    firstName: '',
+    middleName: '',
+    email: '',
+    otp: '',
+    password: '',
+  });
+
+  const breadcrumbItems = BREADCRUMBS[step] ?? BREADCRUMBS[STEPS.PERSONAL];
+
+  const handlePersonalSubmit = (data) => {
+    setFormData((prev) => ({ ...prev, ...data }));
+    setStep(STEPS.EMAIL);
   };
 
-  return (
-    <div className="min-h-screen flex flex-col">
-      {/* Top section: dark green banner with background image */}
-      <Background>
-        <div className="absolute left-0 right-0 bottom-60 flex flex-col items-center">
-          {/* Logo and branding */}
-          <Logo variant="auth" />
+  const handleEmailSubmit = (data) => {
+    setFormData((prev) => ({ ...prev, ...data }));
+    setStep(STEPS.PASSWORD);
+  };
 
-          {/* Page title */}
-          <h1 className="text-white text-3xl md:text-4xl lg:text-5xl font-bold text-center uppercase tracking-wide mt-4">
-            Create an account
-          </h1>
+  const handlePasswordSubmit = (data) => {
+    setFormData((prev) => ({ ...prev, ...data }));
+    setStep(STEPS.SUCCESS);
+  };
 
-          {/* Breadcrumb */}
-          <nav className="flex justify-center mt-6 text-white text-sm">
-            <Link
-              to="/"
-              className="hover:text-white hover:underline transition-colors"
-            >
-              HOME
-            </Link>
-            <span className="mx-2">/</span>
-            <span className="text-white">PERSONAL INFORMATION</span>
-          </nav>
-        </div>
-      </Background>
+  const renderFormContent = () => {
+    if (step === STEPS.SUCCESS) {
+      return <SuccessStep />;
+    }
+    if (step === STEPS.PERSONAL) {
+      return <RegisterForm onSubmit={handlePersonalSubmit} />;
+    }
+    if (step === STEPS.EMAIL) {
+      return (
+        <EmailCredentialsForm
+          onSubmit={handleEmailSubmit}
+          defaultEmail={formData.email}
+        />
+      );
+    }
+    if (step === STEPS.PASSWORD) {
+      return <PasswordForm onSubmit={handlePasswordSubmit} />;
+    }
+    return null;
+  };
 
-      {/* Bottom section: overlapping white card, no absolute on card so cursor/caret stay dark */}
-      <section className="flex-1 bg-gray-50 min-h-[50vh] flex items-start justify-center  md:-mt-90 relative z-20">
-        <div className="absolute left-0 right-0 bottom-70 mx-auto w-full max-w-md pt-4">
-          <div className="bg-white rounded-2xl shadow-lg p-6 md:p-8 border border-gray-100 text-gray-900">
-            <RegisterForm onSubmit={handleSubmit} />
-
-            <p className="text-center text-gray-600 text-sm mt-6">
-              Already have an account?{' '}
+  const header = (
+    <>
+      <Logo variant="auth" />
+      <h1 className="text-white text-3xl md:text-4xl lg:text-5xl font-bold text-center uppercase tracking-wide mt-4">
+        Create an account
+      </h1>
+      <nav className="flex justify-center flex-wrap items-center mt-6 text-white text-sm gap-x-1">
+        {breadcrumbItems.map((item, i) => (
+          <span key={`${item}-${i}`} className="flex items-center">
+            {item === 'HOME' ? (
               <Link
-                to="/login"
-                className="text-blue-600 hover:text-blue-700 hover:underline font-medium transition-colors"
+                to="/"
+                className="hover:text-white hover:underline transition-colors"
               >
-                Click Here
+                {item}
               </Link>
-            </p>
-          </div>
+            ) : (
+              <span>{item}</span>
+            )}
+            {i < breadcrumbItems.length - 1 && <span className="mx-2">/</span>}
+          </span>
+        ))}
+      </nav>
+    </>
+  );
+
+  return (
+    <AuthLayout header={header}>
+      {step === STEPS.SUCCESS ? (
+        <div className="w-full max-w-lg">
+          <SuccessStep />
         </div>
-      </section>
-    </div>
+      ) : (
+        <div className="bg-white rounded-2xl shadow-lg p-6 md:p-8 w-full max-w-lg border border-gray-100 text-gray-900">
+          {renderFormContent()}
+          <p className="text-center text-gray-600 text-sm mt-6">
+            Already have an account?{' '}
+            <Link
+              to="/login"
+              className="text-blue-600 hover:text-blue-700 hover:underline font-medium transition-colors"
+            >
+              Click Here
+            </Link>
+          </p>
+        </div>
+      )}
+    </AuthLayout>
   );
 }

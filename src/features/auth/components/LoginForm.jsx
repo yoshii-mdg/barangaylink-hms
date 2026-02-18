@@ -19,7 +19,7 @@ export default function LoginForm({ onSubmit, isLoading = false }) {
       <div>
         <label
           htmlFor="login-email"
-          className="block text-[#005F02] font-bold mb-2"
+          className="block text-[#005F02] font-bold mb-2 text-base"
         >
           Email Address
         </label>
@@ -29,7 +29,7 @@ export default function LoginForm({ onSubmit, isLoading = false }) {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           placeholder="Enter your email"
-          className="w-full px-4 py-3 rounded-lg border border-gray-300 bg-white text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#005F02]/30 focus:border-[#005F02] transition-shadow disabled:opacity-60 disabled:cursor-not-allowed"
+          className="w-full px-3 py-3 rounded-lg border border-gray-300 bg-white text-gray-800 text-base placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#005F02]/30 focus:border-[#005F02] transition-shadow disabled:opacity-60 disabled:cursor-not-allowed"
           autoComplete="email"
           required
           disabled={isLoading}
@@ -40,7 +40,7 @@ export default function LoginForm({ onSubmit, isLoading = false }) {
       <div>
         <label
           htmlFor="login-password"
-          className="block text-[#005F02] font-bold mb-2"
+          className="block text-[#005F02] font-bold mb-2 text-base"
         >
           Password
         </label>
@@ -51,7 +51,7 @@ export default function LoginForm({ onSubmit, isLoading = false }) {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="Enter your password"
-            className="w-full px-4 py-3 pr-12 rounded-lg border border-gray-300 bg-white text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#005F02]/30 focus:border-[#005F02] transition-shadow disabled:opacity-60 disabled:cursor-not-allowed"
+            className="w-full px-4 py-3 pr-12 rounded-lg border border-gray-300 bg-white text-gray-800 text-base placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#005F02]/30 focus:border-[#005F02] transition-shadow disabled:opacity-60 disabled:cursor-not-allowed"
             autoComplete="current-password"
             required
             disabled={isLoading}
@@ -59,9 +59,10 @@ export default function LoginForm({ onSubmit, isLoading = false }) {
           <button
             type="button"
             onClick={() => setShowPassword(!showPassword)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-500 hover:text-[#005F02] transition-colors"
+            className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-500 hover:text-[#005F02] focus:outline-none focus:ring-0 shrink-0"
             aria-label={showPassword ? 'Hide password' : 'Show password'}
             disabled={isLoading}
+            tabIndex={-1}
           >
             {showPassword ? (
               <FiEyeOff className="w-5 h-5" />
@@ -83,7 +84,7 @@ export default function LoginForm({ onSubmit, isLoading = false }) {
       {/* Login button */}
       <button
         type="submit"
-        className="w-full py-3 rounded-lg bg-[#005F02] text-white font-bold uppercase tracking-wide hover:bg-[#004A01] transition-colors disabled:opacity-70 disabled:cursor-not-allowed disabled:hover:bg-[#005F02]"
+        className="w-full py-3.5 rounded-lg bg-[#005F02] text-white text-base font-bold uppercase tracking-wide hover:bg-[#004A01] transition-colors disabled:opacity-70 disabled:cursor-not-allowed disabled:hover:bg-[#005F02]"
         disabled={isLoading}
       >
         {isLoading ? 'LOGIN....' : 'LOGIN'}

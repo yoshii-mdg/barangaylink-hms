@@ -17,7 +17,7 @@ function AppRoutes() {
         <Route path="/privacy" element={<Privacy />} />
         <Route path="/terms" element={<Terms />} />
         <Route path="/contact" element={<Contact />} />
-        <Route path='/forgot-password' element={<ForgotPassword/ >} />
+        <Route path='/forgot-password' element={<ForgotPassword />} />
         <Route path='/dashboard' element={<Dashboard />} />
       </Routes>
     </BrowserRouter>

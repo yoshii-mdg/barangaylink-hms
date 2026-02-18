@@ -148,13 +148,13 @@ export default function PasswordForm({ onSubmit, variant = 'signup' }) {
         {/* Terms and Conditions (signup only) */}
         {!isForgotPassword && (
           <>
-            <div className="flex items-start gap-2">
+            <div className="flex justify-center gap-2">
               <input
                 id="signup-agree-terms"
                 type="checkbox"
                 checked={agreedToTerms}
                 onChange={(e) => setAgreedToTerms(e.target.checked)}
-                className="mt-1 h-4 w-4 rounded border-gray-300 text-[#005F02] focus:ring-[#005F02]"
+                className="mt-0.5   h-4 w-4 rounded border-gray-300 text-[#005F02] focus:ring-[#005F02] accent-[#0096FF]"
               />
               <label htmlFor="signup-agree-terms" className="text-sm text-black">
                 I agree to the{' '}

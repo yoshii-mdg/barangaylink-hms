@@ -48,19 +48,28 @@ const options = {
   },
 };
 
-const data = {
-  labels: ['2021', '2022', '2023', '2024', '2025'],
-  datasets: [
-    {
-      data: [120, 135, 150, 165, 180],
-      backgroundColor: '#86efac',
-      borderColor: '#22c55e',
-      borderWidth: 1,
-    },
-  ],
+const getData = (filters) => {
+  const selectedYear = parseInt(filters?.year || new Date().getFullYear(), 10);
+  const startYear = selectedYear - 4;
+  const labels = Array.from({ length: 5 }, (_, i) => String(startYear + i));
+  const baseData = [120, 135, 150, 165, 180];
+  const yearOffset = selectedYear - 2025;
+  const data = baseData.map((val, idx) => Math.max(0, Math.round(val + yearOffset * 15 + idx * 3)));
+  
+  return {
+    labels,
+    datasets: [
+      {
+        data,
+        backgroundColor: '#86efac',
+        borderColor: '#22c55e',
+        borderWidth: 1,
+      },
+    ],
+  };
 };
 
-export default function NewResidentsPerYear() {
+export default function NewResidentsPerYear({ filters }) {
   const canvasRef = useRef(null);
   const chartRef = useRef(null);
 
@@ -68,14 +77,15 @@ export default function NewResidentsPerYear() {
     if (!canvasRef.current) return;
     const ctx = canvasRef.current.getContext('2d');
     if (chartRef.current) chartRef.current.destroy();
+    const chartData = getData(filters);
     chartRef.current = new Chart(ctx, {
       type: 'bar',
-      data,
+      data: chartData,
       options,
       plugins: [barLabelsPlugin],
     });
     return () => chartRef.current?.destroy();
-  }, []);
+  }, [filters]);
 
   return (
     <div className="h-[280px] w-full relative">

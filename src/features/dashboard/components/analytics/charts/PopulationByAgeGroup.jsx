@@ -40,19 +40,26 @@ const options = {
   },
 };
 
-const data = {
-  labels: ['Children', 'Youth', 'Adults', 'Senior Citizens'],
-  datasets: [
-    {
-      data: [780, 920, 1189, 355],
-      backgroundColor: '#86efac',
-      borderColor: '#22c55e',
-      borderWidth: 1,
-    },
-  ],
+const getData = (filters) => {
+  const year = parseInt(filters?.year || new Date().getFullYear(), 10);
+  const yearOffset = year - new Date().getFullYear();
+  const baseData = [780, 920, 1189, 355];
+  const data = baseData.map((val) => Math.max(0, Math.round(val + yearOffset * 20)));
+  
+  return {
+    labels: ['Children', 'Youth', 'Adults', 'Senior Citizens'],
+    datasets: [
+      {
+        data,
+        backgroundColor: '#86efac',
+        borderColor: '#22c55e',
+        borderWidth: 1,
+      },
+    ],
+  };
 };
 
-export default function PopulationByAgeGroup() {
+export default function PopulationByAgeGroup({ filters }) {
   const canvasRef = useRef(null);
   const chartRef = useRef(null);
 
@@ -60,13 +67,14 @@ export default function PopulationByAgeGroup() {
     if (!canvasRef.current) return;
     const ctx = canvasRef.current.getContext('2d');
     if (chartRef.current) chartRef.current.destroy();
+    const chartData = getData(filters);
     chartRef.current = new Chart(ctx, {
       type: 'bar',
-      data,
+      data: chartData,
       options,
     });
     return () => chartRef.current?.destroy();
-  }, []);
+  }, [filters]);
 
   return (
     <div className="h-[280px] w-full relative">

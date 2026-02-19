@@ -40,24 +40,40 @@ const options = {
   },
 };
 
-const data = {
-  labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
-  datasets: [
-    {
-      data: [45, 38, 52, 58, 48, 58],
-      borderColor: '#22c55e',
-      backgroundColor: 'rgba(34, 197, 94, 0.1)',
-      borderWidth: 2,
-      fill: true,
-      pointBackgroundColor: '#22c55e',
-      pointBorderColor: '#fff',
-      pointBorderWidth: 2,
-      pointRadius: 6
-    },
-  ],
+const getData = (filters) => {
+  const dateRange = filters?.dateRange || 'last30';
+  let labels, data;
+  
+  if (dateRange === 'daily') {
+    labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    data = [12, 15, 18, 14, 16, 13, 10];
+  } else if (dateRange === 'weekly') {
+    labels = ['Week 1', 'Week 2', 'Week 3', 'Week 4'];
+    data = [45, 52, 48, 55];
+  } else {
+    labels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
+    data = [45, 38, 52, 58, 48, 58];
+  }
+  
+  return {
+    labels,
+    datasets: [
+      {
+        data,
+        borderColor: '#22c55e',
+        backgroundColor: 'rgba(34, 197, 94, 0.1)',
+        borderWidth: 2,
+        fill: true,
+        pointBackgroundColor: '#22c55e',
+        pointBorderColor: '#fff',
+        pointBorderWidth: 2,
+        pointRadius: 6
+      },
+    ],
+  };
 };
 
-export default function IdRenewalStatistics() {
+export default function IdRenewalStatistics({ filters }) {
   const canvasRef = useRef(null);
   const chartRef = useRef(null);
 
@@ -65,13 +81,14 @@ export default function IdRenewalStatistics() {
     if (!canvasRef.current) return;
     const ctx = canvasRef.current.getContext('2d');
     if (chartRef.current) chartRef.current.destroy();
+    const chartData = getData(filters);
     chartRef.current = new Chart(ctx, {
       type: 'line',
-      data,
+      data: chartData,
       options,
     });
     return () => chartRef.current?.destroy();
-  }, []);
+  }, [filters]);
 
   return (
     <div className="h-[280px] w-full relative">

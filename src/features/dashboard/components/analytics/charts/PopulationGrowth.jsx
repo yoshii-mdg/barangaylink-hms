@@ -27,25 +27,34 @@ const options = {
   },
 };
 
-const data = {
-  labels: ['2021', '2022', '2023', '2024', '2025'],
-  datasets: [
-    {
-      data: [2950, 3050, 3250, 3450, 3680],
-      borderColor: '#22c55e',
-      backgroundColor: 'rgba(34, 197, 94, 0.1)',
-      borderWidth: 2,
-      fill: true,
-      pointBackgroundColor: '#22c55e',
-      pointBorderColor: '#fff',
-      pointBorderWidth: 2,
-      pointRadius: 6,
-      tension: 0.2,
-    },
-  ],
+const getData = (filters) => {
+  const selectedYear = parseInt(filters?.year || new Date().getFullYear(), 10);
+  const startYear = selectedYear - 4;
+  const labels = Array.from({ length: 5 }, (_, i) => String(startYear + i));
+  const baseData = [2950, 3050, 3250, 3450, 3680];
+  const yearOffset = selectedYear - 2025;
+  const data = baseData.map((val, idx) => Math.max(0, Math.round(val + yearOffset * 120 + idx * 100)));
+  
+  return {
+    labels,
+    datasets: [
+      {
+        data,
+        borderColor: '#22c55e',
+        backgroundColor: 'rgba(34, 197, 94, 0.1)',
+        borderWidth: 2,
+        fill: true,
+        pointBackgroundColor: '#22c55e',
+        pointBorderColor: '#fff',
+        pointBorderWidth: 2,
+        pointRadius: 6,
+        tension: 0.2,
+      },
+    ],
+  };
 };
 
-export default function PopulationGrowth() {
+export default function PopulationGrowth({ filters }) {
   const canvasRef = useRef(null);
   const chartRef = useRef(null);
 
@@ -53,13 +62,14 @@ export default function PopulationGrowth() {
     if (!canvasRef.current) return;
     const ctx = canvasRef.current.getContext('2d');
     if (chartRef.current) chartRef.current.destroy();
+    const chartData = getData(filters);
     chartRef.current = new Chart(ctx, {
       type: 'line',
-      data,
+      data: chartData,
       options,
     });
     return () => chartRef.current?.destroy();
-  }, []);
+  }, [filters]);
 
   return (
     <div className="h-[280px] w-full relative">

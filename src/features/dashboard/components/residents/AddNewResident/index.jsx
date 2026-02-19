@@ -69,7 +69,7 @@ export default function AddNewResident({ isOpen, onClose, onSubmit }) {
       >
         {/* Header */}
         <div className="flex items-center gap-3 px-6 py-4 border-b border-gray-200">
-          <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-[#005F02]/15 text-[#005F02]">
+          <div className="flex items-center justify-center w-10 h-10 rounded-lg text-[#005F02]">
             <PiUserPlus className="w-6 h-6" />
           </div>
           <h2 id="add-resident-title" className="text-xl font-semibold text-gray-900">

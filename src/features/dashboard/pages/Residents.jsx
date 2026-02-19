@@ -112,7 +112,10 @@ export default function Residents() {
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
               <div className="flex items-center gap-3 flex-wrap">
                 <SearchResidents value={search} onChange={setSearch} placeholder="Search" />
-                <SortFilter value={sortBy} onChange={setSortBy} placeholder />
+                <div className="inline-flex items-center gap-2">
+                  <span className="text-sm font-semibold">Sort By:</span>
+                  <SortFilter value={sortBy} onChange={setSortBy} />
+                </div>
               </div>
               <div className="flex items-center gap-3">
                 <button

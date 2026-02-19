@@ -2,7 +2,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { LandingPage, Privacy, Terms, Contact } from '../features/landing'
 import { ScrollToTop } from "../shared";
 import { Login, SignUp, ForgotPassword } from '../features/auth'
-import {Dashboard} from '../features/dashboard'
+import { Dashboard, Analytics } from '../features/dashboard'
 
 function AppRoutes() {
   return (
@@ -19,6 +19,7 @@ function AppRoutes() {
         <Route path="/contact" element={<Contact />} />
         <Route path='/forgot-password' element={<ForgotPassword />} />
         <Route path='/dashboard' element={<Dashboard />} />
+        <Route path='/analytics' element={<Analytics />} />
       </Routes>
     </BrowserRouter>
   )

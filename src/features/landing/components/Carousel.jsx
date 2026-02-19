@@ -9,7 +9,8 @@ export default function Carousel({ images = [] }) {
         {
             id: 1,
             src: '/src/assets/images/slides-1.jpg',
-            alt: 'Barangay Building 1'
+            alt: 'Barangay Building 1',
+            loading: 'lazy'
         },
     ];
 

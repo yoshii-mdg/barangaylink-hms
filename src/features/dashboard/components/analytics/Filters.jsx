@@ -10,7 +10,7 @@ const DATE_RANGE_OPTIONS = [
 ];
 
 const FILTER_ALL_OPTIONS = [{ value: 'all', label: 'All' }];
-const FILTER_YEAR_PAGE_SIZE = 16;
+const FILTER_YEAR_PAGE_SIZE = 9; // 3 rows x 3 columns
 const FILTER_CATEGORY_OPTIONS = [{ value: 'category', label: 'Category' }];
 
 function formatDate(d) {
@@ -68,7 +68,7 @@ export default function Filters() {
   const [filterAll, setFilterAll] = useState('All');
   const [filterYear, setFilterYear] = useState(String(new Date().getFullYear()));
   const [filterCategory, setFilterCategory] = useState('Category');
-  const [filterYearRangeStart, setFilterYearRangeStart] = useState(() => new Date().getFullYear() - 8); // center current year in first page
+  const [filterYearRangeStart, setFilterYearRangeStart] = useState(() => new Date().getFullYear() - 4); // center current year in 3x3 grid (middle position)
   const last30Ref = useRef(null);
   const customRef = useRef(null);
   const filterAllRef = useRef(null);
@@ -161,7 +161,7 @@ export default function Filters() {
     : 'Custom';
 
   return (
-    <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-6" data-date-range={activeDateRange}>
+    <div className="flex flex-col sm:flex-row sm:items-center justify-end gap-4 mb-6" data-date-range={activeDateRange}>
       {/* Date Range - single light gray rounded container */}
       <div className="inline-flex items-center gap-2 flex-wrap p-2 rounded-xl border-gray-200">
         <span className="text-sm font-semibold  px-1">Date Range</span>
@@ -388,7 +388,8 @@ export default function Filters() {
                 setFilterCategoryOpen(false);
                 const currentYear = parseInt(filterYear, 10);
                 if (!isNaN(currentYear)) {
-                  setFilterYearRangeStart(Math.max(2000, currentYear - Math.floor(FILTER_YEAR_PAGE_SIZE / 2)));
+                  // Center the selected year in the 3x3 grid (middle position is index 4)
+                  setFilterYearRangeStart(Math.max(2000, currentYear - 4));
                 }
               }}
               className="inline-flex items-center gap-5 px-4 py-2 rounded-lg text-sm border border-gray-300 shrink-0 min-w-[90px] justify-between bg-white  hover:bg-gray-50"
@@ -424,7 +425,7 @@ export default function Filters() {
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                   </button>
                 </div>
-                <div className="grid grid-cols-4 gap-1.5 max-h-[220px] overflow-y-auto">
+                <div className="grid grid-cols-3 gap-1.5">
                   {Array.from({ length: FILTER_YEAR_PAGE_SIZE }, (_, i) => filterYearRangeStart + i).map((y) => (
                     <button
                       key={y}

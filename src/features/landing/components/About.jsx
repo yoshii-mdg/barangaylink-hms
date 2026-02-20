@@ -13,7 +13,7 @@ export default function About() {
                 
                 {/* Left Section - Image */}
                 <div className="w-1/2 shrink-0 mx-auto">
-                    <img src="/src/assets/images/about-us-pic.png" alt="About Us" className="w-full h-auto rounded-lg object-cover" />
+                    <img src="/src/assets/images/about-us-pic.png" alt="About Us" className="w-full h-auto rounded-lg object-cover loading-lazy" />
                 </div>
 
                 {/* Right Section - Text & Bullet Points */}

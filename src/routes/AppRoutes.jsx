@@ -2,7 +2,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { LandingPage, Privacy, Terms, Contact } from '../features/landing'
 import { ScrollToTop } from "../shared";
 import { Login, SignUp, ForgotPassword } from '../features/auth'
-import { Dashboard } from '../features/dashboard'
+import { Dashboard, Analytics, Residents } from '../features/dashboard'
 import ProtectedRoute from './ProtectedRoute';
 
 function AppRoutes() {
@@ -22,6 +22,8 @@ function AppRoutes() {
 
         {/* Protected routes */}
         <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+        <Route path="/analytics" element={<ProtectedRoute><Analytics /></ProtectedRoute>} />
+        <Route path="/residents" element={<ProtectedRoute><Residents /></ProtectedRoute>} />
       </Routes>
     </BrowserRouter>
   )

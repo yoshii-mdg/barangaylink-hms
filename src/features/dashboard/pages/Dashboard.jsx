@@ -4,8 +4,10 @@ import { PiUsersThree } from "react-icons/pi";
 import { IoShieldCheckmarkOutline } from "react-icons/io5";
 import DashboardHeader from '../components/DashboardHeader';
 import DashboardSidebar from '../components/DashboardSidebar';
+import { useAuth } from '../../../core/AuthContext';
 
 export default function Dashboard() {
+  const { logout } = useAuth();
   const statCards = [
     { label: 'Total Residents', icon: PiUsersThree, value: '4,567', sub: 'Updated as of Jan 2026' },
     { label: 'Total Households', icon: FiHome, value: '1,067', sub: 'Updated as of Jan 2026' },
@@ -20,10 +22,10 @@ export default function Dashboard() {
       dateRegistered: 'February 12, 2026',
     },
     {
-        name: 'Murphy De Guzman',
-        address: '#25 Taga Novaliches trapik',
-        gender: 'Male',
-        dateRegistered: 'Febuary 12,2026'
+      name: 'Murphy De Guzman',
+      address: '#25 Taga Novaliches trapik',
+      gender: 'Male',
+      dateRegistered: 'Febuary 12,2026'
 
     },
   ];
@@ -40,46 +42,46 @@ export default function Dashboard() {
       <DashboardSidebar />
 
       <main className="flex-1">
-        <DashboardHeader title="Dashboard" />
+        <DashboardHeader title="Dashboard" onLogout={logout} />
 
         {/* Content */}
         <section className="px-5 py-7">
-        {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {/* Stats */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {statCards.map((card) => {
-            const Icon = card.icon;
-            return (
+              const Icon = card.icon;
+              return (
                 <div
-                key={card.label}
-                className="bg-white rounded-xl border border-gray-200 border-r-6 border-r-[#005F02] shadow-sm p-8 relative"
+                  key={card.label}
+                  className="bg-white rounded-xl border border-gray-200 border-r-6 border-r-[#005F02] shadow-sm p-8 relative"
                 >
 
-                {/* Parent grid with 2 rows: (1) icon+label, (2) value+sub */}
-                <div className="grid gap-y-3">
+                  {/* Parent grid with 2 rows: (1) icon+label, (2) value+sub */}
+                  <div className="grid gap-y-3">
                     {/* Row 1: Icon + Label */}
                     <div className="grid grid-cols-[44px_1fr] items-center gap-x-2">
-                    <div className="flex items-center justify-center text-[#005F02]">
+                      <div className="flex items-center justify-center text-[#005F02]">
                         <Icon className="w-10 h-10" />
-                    </div>
-                    <div className="text-2xl font-semibold text-gray-800">
+                      </div>
+                      <div className="text-2xl font-semibold text-gray-800">
                         {card.label}
-                    </div>
+                      </div>
                     </div>
 
                     {/* Row 2: Value + Sub (stacked) */}
                     <div>
-                    <div className="text-3xl font-bold text-gray-900">
+                      <div className="text-3xl font-bold text-gray-900">
                         {card.value}
-                    </div>
-                    <div className="text-lg text-gray-500">
+                      </div>
+                      <div className="text-lg text-gray-500">
                         {card.sub}
+                      </div>
                     </div>
-                    </div>
+                  </div>
                 </div>
-            </div>
-            );
+              );
             })}
-        </div>
+          </div>
 
           {/* Lower panels */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6 ">

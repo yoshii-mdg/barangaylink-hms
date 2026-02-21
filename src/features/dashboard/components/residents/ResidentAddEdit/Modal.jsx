@@ -12,6 +12,7 @@ const initialFormData = {
 
 export default function ResidentAddEdit({ isOpen, onClose, onSubmit, initialData = null, mode = 'add' }) {
   const getInitialFormData = useMemo(() => {
+    // Stored as "LastName FirstName MiddleName Suffix"
     if (initialData && mode === 'edit') {
       const nameParts = initialData.name?.split(' ') || [];
       let lastName = '', firstName = '', middleName = '', suffix = '';
@@ -31,6 +32,7 @@ export default function ResidentAddEdit({ isOpen, onClose, onSubmit, initialData
         middleName = middleName.replace(/\s+(Jr\.|Sr\.|II|III|IV)$/, '');
       }
 
+      // Stored as "HouseNo, Street, Purok, Barangay"
       const addressParts = initialData.address?.split(', ') || [];
       const houseNo = addressParts[0] || '';
       const street = addressParts[1] || '';
@@ -62,6 +64,7 @@ export default function ResidentAddEdit({ isOpen, onClose, onSubmit, initialData
     return initialFormData;
   }, [initialData, mode]);
 
+  // We want to reset form data whenever initialData changes (e.g. when opening edit modal for a different resident)
   const [formData, setFormData] = useState(getInitialFormData);
   const panelRef = useRef(null);
 
@@ -85,6 +88,7 @@ export default function ResidentAddEdit({ isOpen, onClose, onSubmit, initialData
     setFormData(initialFormData);
   };
 
+  // When submitting, we want to combine the form data into the expected resident format
   const handleSubmit = (e) => {
     e.preventDefault();
     const resident = {

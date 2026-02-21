@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { PiUserPlus } from 'react-icons/pi';
 import PersonalInformationForm from './PersonalInformationForm';
 import AddressInformationForm from './AddressInformationForm';
@@ -10,9 +10,67 @@ const initialFormData = {
   identification: {},
 };
 
-export default function AddNewResident({ isOpen, onClose, onSubmit }) {
-  const [formData, setFormData] = useState(initialFormData);
+export default function ResidentAddEdit({ isOpen, onClose, onSubmit, initialData = null, mode = 'add' }) {
+  const getInitialFormData = useMemo(() => {
+    // Stored as "LastName FirstName MiddleName Suffix"
+    if (initialData && mode === 'edit') {
+      const nameParts = initialData.name?.split(' ') || [];
+      let lastName = '', firstName = '', middleName = '', suffix = '';
+
+      if (nameParts.length >= 2) {
+        lastName = nameParts[nameParts.length - 1];
+        firstName = nameParts[0];
+        middleName = nameParts.slice(1, -1).join(' ');
+      } else if (nameParts.length === 1) {
+        firstName = nameParts[0];
+      }
+
+      // Check for suffix in middleName
+      const suffixMatch = middleName.match(/(Jr\.|Sr\.|II|III|IV)$/);
+      if (suffixMatch) {
+        suffix = suffixMatch[1];
+        middleName = middleName.replace(/\s+(Jr\.|Sr\.|II|III|IV)$/, '');
+      }
+
+      // Stored as "HouseNo, Street, Purok, Barangay"
+      const addressParts = initialData.address?.split(', ') || [];
+      const houseNo = addressParts[0] || '';
+      const street = addressParts[1] || '';
+      const purok = addressParts[2] || '';
+      const barangay = addressParts[3] || '';
+
+      return {
+        personal: {
+          lastName,
+          firstName,
+          middleName,
+          suffix,
+          birthdate: initialData.birthdate || '',
+          gender: initialData.gender || '',
+          contactNumber: initialData.contactNo || '',
+        },
+        address: {
+          houseNo,
+          street,
+          purok,
+          barangay,
+        },
+        identification: {
+          idNumber: initialData.residentNo || '',
+          status: initialData.status || 'Active',
+        },
+      };
+    }
+    return initialFormData;
+  }, [initialData, mode]);
+
+  // We want to reset form data whenever initialData changes (e.g. when opening edit modal for a different resident)
+  const [formData, setFormData] = useState(getInitialFormData);
   const panelRef = useRef(null);
+
+  useEffect(() => {
+    setFormData(getInitialFormData);
+  }, [getInitialFormData]);
 
   useEffect(() => {
     const onKey = (e) => {
@@ -30,6 +88,7 @@ export default function AddNewResident({ isOpen, onClose, onSubmit }) {
     setFormData(initialFormData);
   };
 
+  // When submitting, we want to combine the form data into the expected resident format
   const handleSubmit = (e) => {
     e.preventDefault();
     const resident = {
@@ -73,7 +132,7 @@ export default function AddNewResident({ isOpen, onClose, onSubmit }) {
             <PiUserPlus className="w-6 h-6" />
           </div>
           <h2 id="add-resident-title" className="text-xl font-semibold text-gray-900">
-            Add New Resident
+            {mode === 'edit' ? 'Edit Resident' : 'Add New Resident'}
           </h2>
         </div>
 
@@ -103,18 +162,20 @@ export default function AddNewResident({ isOpen, onClose, onSubmit }) {
             >
               Cancel
             </button>
-            <button
-              type="button"
-              onClick={handleClear}
-              className="px-4 py-2.5 rounded-lg text-sm font-medium border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
-            >
-              Clear
-            </button>
+            {mode === 'add' && (
+              <button
+                type="button"
+                onClick={handleClear}
+                className="px-4 py-2.5 rounded-lg text-sm font-medium border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+              >
+                Clear
+              </button>
+            )}
             <button
               type="submit"
               className="px-4 py-2.5 rounded-lg text-sm font-medium bg-[#005F02] text-white hover:bg-[#004A01]"
             >
-              Add New Resident
+              {mode === 'edit' ? 'Update Resident' : 'Add New Resident'}
             </button>
           </div>
         </form>

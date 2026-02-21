@@ -6,7 +6,7 @@ import {
   SortFilter,
   ResidentTable,
   ResidentPagination,
-  AddNewResident,
+  ResidentAddEdit,
 } from '../components/residents';
 
 const MOCK_RESIDENTS = [
@@ -59,6 +59,8 @@ export default function Residents() {
   const [sortBy, setSortBy] = useState('name-asc');
   const [currentPage, setCurrentPage] = useState(1);
   const [addModalOpen, setAddModalOpen] = useState(false);
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [selectedResident, setSelectedResident] = useState(null);
   const [residents, setResidents] = useState(MOCK_RESIDENTS);
 
   const filteredAndSorted = useMemo(() => {
@@ -99,6 +101,33 @@ export default function Residents() {
     ]);
   };
 
+  const handleEditResident = (resident) => {
+    setSelectedResident(resident);
+    setEditModalOpen(true);
+  };
+
+  const handleUpdateResident = (data) => {
+    const name = [data.lastName, data.firstName, data.middleName, data.suffix].filter(Boolean).join(' ');
+    const address = [data.houseNo, data.street, data.purok, data.barangay].filter(Boolean).join(', ');
+    setResidents((prev) =>
+      prev.map((r) =>
+        r.id === selectedResident.id
+          ? {
+              ...r,
+              residentNo: data.idNumber || r.residentNo,
+              name: name || r.name,
+              address: address || r.address,
+              gender: data.gender || r.gender,
+              birthdate: data.birthdate || r.birthdate,
+              contactNo: data.contactNumber || r.contactNo,
+              status: data.status || r.status,
+            }
+          : r
+      )
+    );
+    setSelectedResident(null);
+  };
+
   return (
     <div className="min-h-screen flex bg-[#F3F7F3]">
       <DashboardSidebar />
@@ -120,12 +149,6 @@ export default function Residents() {
               <div className="flex items-center gap-3">
                 <button
                   type="button"
-                  className="px-4 py-2.5 rounded-lg text-sm font-medium border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
-                >
-                  Edit Resident Info
-                </button>
-                <button
-                  type="button"
                   onClick={() => setAddModalOpen(true)}
                   className="px-4 py-2.5 rounded-lg text-sm font-medium bg-[#005F02] text-white hover:bg-[#004A01]"
                 >
@@ -135,7 +158,7 @@ export default function Residents() {
             </div>
 
             {/* Table */}
-            <ResidentTable residents={paginatedResidents} />
+            <ResidentTable residents={paginatedResidents} onSelectResident={handleEditResident} />
 
             {/* Pagination */}
             <ResidentPagination
@@ -149,10 +172,22 @@ export default function Residents() {
         </section>
       </main>
 
-      <AddNewResident
+      <ResidentAddEdit
         isOpen={addModalOpen}
         onClose={() => setAddModalOpen(false)}
         onSubmit={handleAddResident}
+        mode="add"
+      />
+
+      <ResidentAddEdit
+        isOpen={editModalOpen}
+        onClose={() => {
+          setEditModalOpen(false);
+          setSelectedResident(null);
+        }}
+        onSubmit={handleUpdateResident}
+        initialData={selectedResident}
+        mode="edit"
       />
     </div>
   );

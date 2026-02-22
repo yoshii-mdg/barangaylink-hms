@@ -1,6 +1,6 @@
 import { FiSearch } from 'react-icons/fi';
 
-export default function SearchResidents({ value = '', onChange, placeholder = 'Search' }) {
+export default function SearchBox({ value = '', onChange, placeholder = 'Search' }) {
   return (
     <div className="relative flex-1 max-w-md">
       <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />

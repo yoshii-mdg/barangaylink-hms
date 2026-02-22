@@ -48,7 +48,7 @@ export default function YearFilter({
           </span>
           <div className="inline-flex items-center gap-0.5 border border-gray-300 rounded px-2 py-0.5">
             {selectedYear}
-            <IoIosArrowDown className="w-4 h-4 shrink-0" />
+            <IoIosArrowDown className={`w-4 h-4 shrink-0 transition-transform ${filterYearOpen ? 'rotate-180' : ''}`} />
           </div>
         </button>
       </div>

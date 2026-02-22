@@ -3,7 +3,7 @@ import { HiEllipsisVertical, HiPencilSquare } from 'react-icons/hi2';
 import { FaRegTrashAlt } from "react-icons/fa";
 import { RiUserMinusLine } from "react-icons/ri";
 
-export default function ResidentTable({ residents = [], onEditResident, onArchiveResident, onDeleteResident }) {
+export default function HouseholdTable({ households = [], onEditHousehold, onArchiveHousehold, onDeleteHousehold }) {
   const [openDropdownId, setOpenDropdownId] = useState(null);
   const dropdownRef = useRef(null);
 
@@ -17,9 +17,9 @@ export default function ResidentTable({ residents = [], onEditResident, onArchiv
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handleDropdownClick = (e, residentId) => {
+  const handleDropdownClick = (e, householdId) => {
     e.stopPropagation();
-    setOpenDropdownId(openDropdownId === residentId ? null : residentId);
+    setOpenDropdownId(openDropdownId === householdId ? null : householdId);
   };
 
   return (
@@ -27,58 +27,53 @@ export default function ResidentTable({ residents = [], onEditResident, onArchiv
       <table className="w-full text-base relative">
         <thead>
           <tr className="text-left text-sm bg-[#F1F7F2] text-gray-700 border-b border-gray-200">
-            <th className="py-3 px-4 font-semibold">Resident No.</th>
-            <th className="py-3 px-4 font-semibold">Name</th>
+            <th className="py-3 px-4 font-semibold">Household No.</th>
+            <th className="py-3 px-4 font-semibold">Head Member Name</th>
             <th className="py-3 px-4 font-semibold">Address</th>
-            <th className="py-3 px-4 font-semibold">Gender</th>
-            <th className="py-3 px-4 font-semibold">Birthdate</th>
-            <th className="py-3 px-4 font-semibold">Contact No.</th>
+            <th className="py-3 px-4 font-semibold">Members</th>
             <th className="py-3 px-4 font-semibold">Status</th>
             <th className="py-3 px-4 font-semibold">Actions</th>
           </tr>
         </thead>
         <tbody>
-          {residents.map((resident, idx) => (
+          {households.map((household, idx) => (
             <tr
-              key={resident.id ?? idx}
+              key={household.id ?? idx}
               className={`border-b border-gray-100 border-l border-r last:border-b-0 ${
                 idx % 2 === 1 ? 'bg-gray-50' : 'bg-white'
               } hover:bg-gray-50/80 transition-colors`}
             >
-              <td className="py-3 px-4 text-gray-800">{resident.residentNo}</td>
-              <td className="py-3 px-4 text-gray-800">{resident.name}</td>
-              <td className="py-3 px-4 text-gray-800">{resident.address}</td>
-              <td className="py-3 px-4 text-gray-800">{resident.gender}</td>
-              <td className="py-3 px-4 text-gray-800">{resident.birthdate}</td>
-              <td className="py-3 px-4 text-gray-800">{resident.contactNo}</td>
+              <td className="py-3 px-4 text-gray-800">{household.householdNo}</td>
+              <td className="py-3 px-4 text-gray-800">{household.headMemberName}</td>
+              <td className="py-3 px-4 text-gray-800">{household.address}</td>
+              <td className="py-3 px-4 text-gray-800">{household.members}</td>
               <td className="py-3 px-4">
                 <span
                   className={`inline-block px-4 py-1 rounded-lg text-xs font-medium ${
-                    resident.status === 'Active'
+                    household.status === 'Active'
                       ? 'bg-emerald-100 text-emerald-800'
                       : 'bg-red-100 text-red-800'
                   }`}
                 >
-                  {resident.status}
+                  {household.status}
                 </span>
               </td>
               <td className="py-3 px-4 relative" ref={dropdownRef}>
                 <button
                   type="button"
-                  onClick={(e) => handleDropdownClick(e, resident.id)}
+                  onClick={(e) => handleDropdownClick(e, household.id)}
                   className="p-2 hover:bg-gray-200 rounded-md transition-colors"
                 >
                   <HiEllipsisVertical className="w-5 h-5 text-gray-600" />
                 </button>
-                {openDropdownId === resident.id && (
+                {openDropdownId === household.id && (
                   <div className="absolute right-0 mt-1 w-48 bg-white rounded-lg border border-gray-200 shadow-lg z-50 pointer-events-auto">
                     <div
                       role="button"
                       tabIndex="0"
                       onMouseDown={(e) => {
                         e.stopPropagation();
-                        console.log('Edit button clicked, calling onEditResident with:', resident);
-                        onEditResident?.(resident);
+                        onEditHousehold?.(household);
                         setOpenDropdownId(null);
                       }}
                       className="flex items-center gap-3 w-full text-left px-4 py-2.5 text-sm hover:bg-gray-100 transition-colors border-b border-gray-100 cursor-pointer"
@@ -91,13 +86,12 @@ export default function ResidentTable({ residents = [], onEditResident, onArchiv
                       tabIndex="0"
                       onMouseDown={(e) => {
                         e.stopPropagation();
-                        console.log('Archive button clicked, calling onArchiveResident with:', resident);
-                        onArchiveResident?.(resident);
+                        onDeleteHousehold?.(household);
                         setOpenDropdownId(null);
                       }}
-                      className="flex items-center gap-3 w-full text-left px-4 py-2.5 text-sm hover:bg-gray-100 transition-colors border-b border-gray-100 cursor-pointer"
+                      className="flex items-center gap-3 w-full text-left px-4 py-2.5 text-sm hover:bg-gray-100 transition-colors border-b border-gray-100 cursor-pointer "
                     >
-                      <RiUserMinusLine className="w-4 h-4 text-gray-600" />
+                    <RiUserMinusLine className="w-4 h-4 text-gray-600" />
                       <span>Archive Resident</span>
                     </div>
                     <div
@@ -105,14 +99,14 @@ export default function ResidentTable({ residents = [], onEditResident, onArchiv
                       tabIndex="0"
                       onMouseDown={(e) => {
                         e.stopPropagation();
-                        console.log('Delete button clicked, calling onDeleteResident with:', resident);
-                        onDeleteResident?.(resident);
+                        console.log('Delete button clicked, calling onDeleteHousehold with:', household);
+                        onDeleteHousehold?.(household);
                         setOpenDropdownId(null);
                       }}
                       className="flex items-center gap-3 w-full text-left px-4 py-2.5 text-sm hover:bg-red-50 transition-colors text-red-600 hover:text-red-700 cursor-pointer"
                     >
                       <FaRegTrashAlt className="w-4 h-4" />
-                      <span>Delete Resident</span>
+                      <span>Delete</span>
                     </div>
                   </div>
                 )}

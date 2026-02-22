@@ -1,6 +1,6 @@
 import { FiChevronLeft, FiChevronRight } from 'react-icons/fi';
 
-export default function ResidentPagination({
+export default function Pagination({
   currentPage = 1,
   totalPages = 1,
   totalEntries = 0,
@@ -56,7 +56,7 @@ export default function ResidentPagination({
                 key={page}
                 type="button"
                 onClick={() => onPageChange?.(page)}
-                className={`min-w-[36px] h-9 px-4 rounded-lg text-sm font-medium border transition-colors ${
+                className={`min-w-9 h-9 px-4 rounded-lg text-sm font-medium border transition-colors ${
                   currentPage === page
                     ? 'bg-[#005F02] text-white border-[#005F02]'
                     : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'

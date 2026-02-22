@@ -127,7 +127,7 @@ export default function ResidentAddEdit({ isOpen, onClose, onSubmit, initialData
         className="relative bg-white w-full max-w-2xl rounded-xl shadow-xl overflow-hidden max-h-[90vh] flex flex-col"
       >
         {/* Header */}
-        <div className="flex items-center gap-3 px-6 py-4 border-b border-gray-200">
+        <div className="flex items-center bg-[#F1F7F2] gap-3 px-6 py-4 border-b border-gray-200">
           <div className="flex items-center justify-center w-10 h-10 rounded-lg text-[#005F02]">
             <PiUserPlus className="w-6 h-6" />
           </div>
@@ -154,7 +154,7 @@ export default function ResidentAddEdit({ isOpen, onClose, onSubmit, initialData
           </div>
 
           {/* Footer buttons */}
-          <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-200 bg-gray-50">
+          <div className="flex justify-end gap-3 bg-[#F1F7F2] px-6 py-4 border-t border-gray-200">
             <button
               type="button"
               onClick={onClose}

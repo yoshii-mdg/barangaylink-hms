@@ -2,12 +2,10 @@ import { useState, useMemo } from 'react';
 import DashboardHeader from '../components/DashboardHeader';
 import DashboardSidebar from '../components/DashboardSidebar';
 import {
-  SearchResidents,
-  SortFilter,
   ResidentTable,
-  ResidentPagination,
   ResidentAddEdit,
 } from '../components/residents';
+import { SortFilter, OrderFilter, Pagination, SearchBox, ArchiveModal, DeleteModal }  from '../../../shared';
 
 const MOCK_RESIDENTS = [
   {
@@ -60,7 +58,11 @@ export default function Residents() {
   const [currentPage, setCurrentPage] = useState(1);
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
+  const [archiveModalOpen, setArchiveModalOpen] = useState(false);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [selectedResident, setSelectedResident] = useState(null);
+  const [residentToArchive, setResidentToArchive] = useState(null);
+  const [residentToDelete, setResidentToDelete] = useState(null);
   const [residents, setResidents] = useState(MOCK_RESIDENTS);
 
   const filteredAndSorted = useMemo(() => {
@@ -73,6 +75,8 @@ export default function Residents() {
     );
     if (sortBy === 'name-asc') list = [...list].sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''));
     if (sortBy === 'name-desc') list = [...list].sort((a, b) => (b.name ?? '').localeCompare(a.name ?? ''));
+    if (sortBy === 'date-newest') list = [...list].sort((a, b) => new Date(b.birthdate ?? 0) - new Date(a.birthdate ?? 0));
+    if (sortBy === 'date-oldest') list = [...list].sort((a, b) => new Date(a.birthdate ?? 0) - new Date(b.birthdate ?? 0));
     if (sortBy === 'status') list = [...list].sort((a, b) => (a.status ?? '').localeCompare(b.status ?? ''));
     return list;
   }, [residents, search, sortBy]);
@@ -102,8 +106,39 @@ export default function Residents() {
   };
 
   const handleEditResident = (resident) => {
+    console.log('handleEditResident called with:', resident);
     setSelectedResident(resident);
     setEditModalOpen(true);
+  };
+
+  const handleArchiveResident = (resident) => {
+    console.log('handleArchiveResident called with:', resident);
+    setResidentToArchive(resident);
+    setArchiveModalOpen(true);
+  };
+
+  const handleDeleteResident = (resident) => {
+    console.log('handleDeleteResident called with:', resident);
+    setResidentToDelete(resident);
+    setDeleteModalOpen(true);
+  };
+
+  const handleConfirmArchive = () => {
+    if (residentToArchive) {
+      setResidents((prev) => prev.filter((r) => r.id !== residentToArchive.id));
+      setArchiveModalOpen(false);
+      setResidentToArchive(null);
+      setCurrentPage(1);
+    }
+  };
+
+  const handleConfirmDelete = () => {
+    if (residentToDelete) {
+      setResidents((prev) => prev.filter((r) => r.id !== residentToDelete.id));
+      setDeleteModalOpen(false);
+      setResidentToDelete(null);
+      setCurrentPage(1);
+    }
   };
 
   const handleUpdateResident = (data) => {
@@ -132,18 +167,19 @@ export default function Residents() {
     <div className="min-h-screen flex bg-[#F3F7F3]">
       <DashboardSidebar />
 
-      <main className="flex-1 overflow-auto">
-        <DashboardHeader title="Resident List" />
+      <main className="flex-1 overflow-auto relative">
+        <DashboardHeader title="Resident" />
 
         <section className="px-5 py-7">
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+            <h1 className='mb-10 font-semibold text-[25px]'>Resident List</h1>
             {/* Search, Sort, Actions */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
               <div className="flex items-center gap-3 flex-wrap">
-                <SearchResidents value={search} onChange={setSearch} placeholder="Search" />
+                <SearchBox value={search} onChange={setSearch} placeholder="Search" />
                 <div className="inline-flex items-center gap-2">
-                  <span className="text-sm font-semibold">Sort By:</span>
                   <SortFilter value={sortBy} onChange={setSortBy} />
+                  <OrderFilter value={sortBy} onChange={setSortBy} />
                 </div>
               </div>
               <div className="flex items-center gap-3">
@@ -158,10 +194,15 @@ export default function Residents() {
             </div>
 
             {/* Table */}
-            <ResidentTable residents={paginatedResidents} onSelectResident={handleEditResident} />
+            <ResidentTable 
+              residents={paginatedResidents}
+              onEditResident={handleEditResident}
+              onArchiveResident={handleArchiveResident}
+              onDeleteResident={handleDeleteResident}
+            />
 
             {/* Pagination */}
-            <ResidentPagination
+            <Pagination
               currentPage={currentPage}
               totalPages={totalPages}
               totalEntries={filteredAndSorted.length}
@@ -172,6 +213,7 @@ export default function Residents() {
         </section>
       </main>
 
+      {/* Modals rendered outside scrollable main */}
       <ResidentAddEdit
         isOpen={addModalOpen}
         onClose={() => setAddModalOpen(false)}
@@ -188,6 +230,28 @@ export default function Residents() {
         onSubmit={handleUpdateResident}
         initialData={selectedResident}
         mode="edit"
+      />
+
+      <ArchiveModal
+        isOpen={archiveModalOpen}
+        title="Resident"
+        message="This record will be archived and removed from the active list."
+        onConfirm={handleConfirmArchive}
+        onCancel={() => {
+          setArchiveModalOpen(false);
+          setResidentToArchive(null);
+        }}
+      />
+
+      <DeleteModal
+        isOpen={deleteModalOpen}
+        title="Resident"
+        message="This record will be archived and deleted from the active list."
+        onConfirm={handleConfirmDelete}
+        onCancel={() => {
+          setDeleteModalOpen(false);
+          setResidentToDelete(null);
+        }}
       />
     </div>
   );

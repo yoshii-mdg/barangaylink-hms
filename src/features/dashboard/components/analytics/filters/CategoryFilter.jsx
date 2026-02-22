@@ -33,7 +33,7 @@ export default function CategoryFilter({
         className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-sm font-medium border border-gray-300 shrink-0 min-w-[100px] justify-between bg-white hover:bg-gray-50"
       >
         {selectedCategory}
-        <IoIosArrowDown className="w-4 h-4 shrink-0" />
+        <IoIosArrowDown className={`w-4 h-4 shrink-0 transition-transform ${filterCategoryOpen ? 'rotate-180' : ''}`} />
       </button>
       {filterCategoryOpen && (
         <div className="absolute top-full left-0 mt-1 py-1 w-full min-w-[100px] bg-white rounded-lg border border-gray-200 shadow-lg z-10">

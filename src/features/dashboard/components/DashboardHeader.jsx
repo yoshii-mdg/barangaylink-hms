@@ -1,12 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
 import { FiLogOut } from 'react-icons/fi';
+import { useAuth } from '../../../core/AuthContext';
 
-export default function DashboardHeader({
-  title = 'Dashboard',
-  userName = 'Super Administrator',
-  userRole = 'Super Admin',
-  onLogout, // <== Placeholder lang
-}) {
+export default function DashboardHeader({ title = 'Dashboard' }) {
+  const { logout, displayName, roleLabel } = useAuth();
   const [showConfirm, setShowConfirm] = useState(false);
   const cancelBtnRef = useRef(null);
 
@@ -21,7 +18,7 @@ export default function DashboardHeader({
 
   const handleConfirm = async () => {
     try {
-      await onLogout?.(); // Placeholder Logout Function
+      await logout();
     } finally {
       setShowConfirm(false);
     }
@@ -33,8 +30,8 @@ export default function DashboardHeader({
 
       <div className="flex items-center gap-3 text-sm">
         <div className="text-right leading-tight select-none">
-          <div className="font-semibold">{userName}</div>
-          <div className="text-xs text-gray-500">{userRole}</div>
+          <div className="font-semibold">{displayName || '—'}</div>
+          <div className="text-xs text-gray-500">{roleLabel}</div>
         </div>
 
         <button
@@ -42,14 +39,7 @@ export default function DashboardHeader({
           onClick={handleOpen}
           aria-label="Log Out"
           title="Log Out"
-          className="
-            inline-flex items-center justify-center
-            w-9 h-9
-            rounded-md
-            hover:text-red-600
-            focus:outline-none focus:ring-1 focus:ring-red-500/50
-            transition-colors
-          "
+          className="inline-flex items-center justify-center w-9 h-9 rounded-md hover:text-red-600 focus:outline-none focus:ring-1 focus:ring-red-500/50 transition-colors"
         >
           <FiLogOut className="w-6 h-6" />
         </button>
@@ -70,29 +60,16 @@ export default function DashboardHeader({
   );
 }
 
-function ConfirmModal({
-  title,
-  message,
-  confirmLabel = 'Confirm',
-  cancelLabel = 'Cancel',
-  onConfirm,
-  onCancel,
-  initialFocusRef, 
-}) {
-  // Close on Escape
+function ConfirmModal({ title, message, confirmLabel = 'Confirm', cancelLabel = 'Cancel', onConfirm, onCancel, initialFocusRef }) {
   useEffect(() => {
-    const onKey = (e) => {
-      if (e.key === 'Escape') onCancel?.();
-    };
+    const onKey = (e) => { if (e.key === 'Escape') onCancel?.(); };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onCancel]);
 
   const panelRef = useRef(null);
   const onBackdropClick = (e) => {
-    if (panelRef.current && !panelRef.current.contains(e.target)) {
-      onCancel?.();
-    }
+    if (panelRef.current && !panelRef.current.contains(e.target)) onCancel?.();
   };
 
   return (
@@ -103,19 +80,13 @@ function ConfirmModal({
       aria-labelledby="confirm-title"
       onMouseDown={onBackdropClick}
     >
-      {/* Backdrop */}
       <div className="absolute inset-0 bg-black/40" />
-
-      {/* Panel */}
       <div
         ref={panelRef}
-        className="relative bg-white w-[90%] max-w-sm rounded-xl shadow-xl p-6 animate-in fade-in zoom-in duration-150 "
+        className="relative bg-white w-[90%] max-w-sm rounded-xl shadow-xl p-6"
       >
-        <h2 id="confirm-title" className="text-lg font-semibold text-gray-900">
-          {title}
-        </h2>
+        <h2 id="confirm-title" className="text-lg font-semibold text-gray-900">{title}</h2>
         <p className="mt-2 text-sm text-gray-600">{message}</p>
-
         <div className="mt-6 flex justify-end gap-3">
           <button
             ref={initialFocusRef}

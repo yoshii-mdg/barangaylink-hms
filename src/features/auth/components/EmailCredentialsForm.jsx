@@ -1,54 +1,36 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 
 const inputClass =
   'w-full px-4 py-3 rounded-lg border border-gray-300 bg-white text-gray-900 text-base placeholder-gray-400 caret-gray-900 focus:outline-none focus:ring-2 focus:ring-[#005F02]/30 focus:border-[#005F02] transition-shadow';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const OTP_COOLDOWN_SECONDS = 30;
 
+/**
+ * Step 2 of the signup flow — collects the user's email address.
+ * Email verification is handled automatically by Supabase after the final
+ * signUp call (Step 3). No OTP is needed here.
+ */
 export default function EmailCredentialsForm({ onSubmit, defaultEmail = '' }) {
   const [email, setEmail] = useState(defaultEmail);
-  const [otp, setOtp] = useState('');
-  const [isSendingOtp, setIsSendingOtp] = useState(false);
   const [emailError, setEmailError] = useState('');
-  const [otpCooldown, setOtpCooldown] = useState(0);
 
-  useEffect(() => {
-    if (otpCooldown <= 0) return;
-    const timer = setInterval(() => {
-      setOtpCooldown((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [otpCooldown]);
-
-  const handleSendOtp = async (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setEmailError('');
-    if (!email) {
+  const validate = () => {
+    if (!email.trim()) {
       setEmailError('Email is required.');
-      return;
+      return false;
     }
     if (!EMAIL_REGEX.test(email.trim())) {
       setEmailError('Please enter a valid email address.');
-      return;
+      return false;
     }
-    setIsSendingOtp(true);
-    // TODO: integrate with backend OTP API
-    await new Promise((r) => setTimeout(r, 800));
-    setIsSendingOtp(false);
-    setOtpCooldown(OTP_COOLDOWN_SECONDS);
+    setEmailError('');
+    return true;
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onSubmit?.({ email, otp });
+    if (!validate()) return;
+    onSubmit?.({ email: email.trim() });
   };
 
   return (
@@ -73,36 +55,9 @@ export default function EmailCredentialsForm({ onSubmit, defaultEmail = '' }) {
         {emailError && (
           <p className="mt-1 text-sm text-red-500">{emailError}</p>
         )}
-        <div className="mt-2 flex justify-end">
-          <button
-            type="button"
-            onClick={handleSendOtp}
-            disabled={isSendingOtp || otpCooldown > 0}
-            className="text-blue-600 hover:text-blue-700 underline disabled:opacity-50 disabled:cursor-not-allowed disabled:no-underline transition-colors text-sm"
-          >
-            {isSendingOtp
-              ? 'Sending...'
-              : otpCooldown > 0
-                ? `Resend in ${otpCooldown}s`
-                : 'Send OTP'}
-          </button>
-        </div>
-      </div>
-
-      <div>
-        <label htmlFor="signup-otp" className="block text-[#005F02] font-bold mb-2 text-base">
-          Verification Code
-        </label>
-        <input
-          id="signup-otp"
-          type="text"
-          value={otp}
-          onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-          placeholder="Enter OTP"
-          className={inputClass}
-          maxLength={6}
-          required
-        />
+        <p className="mt-2 text-sm text-gray-500">
+          A confirmation link will be sent to this address after you set your password.
+        </p>
       </div>
 
       <button

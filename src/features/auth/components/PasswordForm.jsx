@@ -6,7 +6,7 @@ import AgreementModal from './AgreementModal';
 const inputClass =
   'w-full px-4 py-3 rounded-lg border border-gray-300 bg-white text-gray-900 text-base placeholder-gray-400 caret-gray-900 focus:outline-none focus:ring-2 focus:ring-[#005F02]/30 focus:border-[#005F02] transition-shadow';
 
-export default function PasswordForm({ onSubmit, variant = 'signup' }) {
+export default function PasswordForm({ onSubmit, isLoading = false, variant = 'signup' }) {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -15,19 +15,29 @@ export default function PasswordForm({ onSubmit, variant = 'signup' }) {
   const [showTermsModal, setShowTermsModal] = useState(false);
 
   const isForgotPassword = variant === 'forgotPassword';
+
   const hasMinLength = password.length >= 8;
   const hasNumber = /\d/.test(password);
   const hasUppercase = /[A-Z]/.test(password);
   const passwordMatch = password !== '' && password === confirmPassword;
 
   const allRequirementsMet = hasMinLength && hasNumber && hasUppercase && passwordMatch;
-  const canSubmit = isForgotPassword ? allRequirementsMet : allRequirementsMet && agreedToTerms;
+  const canSubmit = isForgotPassword
+    ? allRequirementsMet
+    : allRequirementsMet && agreedToTerms;
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!canSubmit) return;
+    if (!canSubmit || isLoading) return;
     onSubmit?.({ password });
   };
+
+  const requirements = [
+    { met: hasMinLength, label: '8 characters minimum' },
+    { met: hasNumber, label: 'Contains a number' },
+    { met: hasUppercase, label: 'Contains an uppercase letter' },
+    { met: passwordMatch, label: 'Passwords match' },
+  ];
 
   return (
     <>
@@ -47,19 +57,16 @@ export default function PasswordForm({ onSubmit, variant = 'signup' }) {
               className={`${inputClass} pr-12`}
               autoComplete="new-password"
               required
+              disabled={isLoading}
             />
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-500 hover:text-[#005F02] focus:outline-none focus:ring-0 shrink-0"
+              className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-500 hover:text-[#005F02] focus:outline-none shrink-0"
               aria-label={showPassword ? 'Hide password' : 'Show password'}
               tabIndex={-1}
             >
-              {showPassword ? (
-                <FiEyeOff className="w-5 h-5" />
-              ) : (
-                <FiEye className="w-5 h-5" />
-              )}
+              {showPassword ? <FiEyeOff className="w-5 h-5" /> : <FiEye className="w-5 h-5" />}
             </button>
           </div>
         </div>
@@ -79,96 +86,72 @@ export default function PasswordForm({ onSubmit, variant = 'signup' }) {
               className={`${inputClass} pr-12`}
               autoComplete="new-password"
               required
+              disabled={isLoading}
             />
             <button
               type="button"
               onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-500 hover:text-[#005F02] focus:outline-none focus:ring-0 shrink-0"
+              className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-500 hover:text-[#005F02] focus:outline-none shrink-0"
               aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
               tabIndex={-1}
             >
-              {showConfirmPassword ? (
-                <FiEyeOff className="w-5 h-5" />
-              ) : (
-                <FiEye className="w-5 h-5" />
-              )}
+              {showConfirmPassword ? <FiEyeOff className="w-5 h-5" /> : <FiEye className="w-5 h-5" />}
             </button>
           </div>
         </div>
 
         {/* Password Requirements Checklist */}
-        <ul className="space-y-2 mb-3 list-none p-0 m-0">
-          <li className="flex items-center gap-3">
-            <img
-              src={CheckList}
-              alt=""
-              className={`w-5 h-5 shrink-0 ${hasMinLength ? 'opacity-100' : 'opacity-40'}`}
-              aria-hidden
-            />
-            <span className="text-black">8 characters minimum</span>
-          </li>
-          <li className="flex items-center gap-3">
-            <img
-              src={CheckList}
-              alt=""
-              className={`w-5 h-5 shrink-0 ${hasNumber ? 'opacity-100' : 'opacity-40'}`}
-              aria-hidden
-            />
-            <span className="text-black">Contains a number</span>
-          </li>
-          <li className="flex items-center gap-3">
-            <img
-              src={CheckList}
-              alt=""
-              className={`w-5 h-5 shrink-0 ${hasUppercase ? 'opacity-100' : 'opacity-40'}`}
-              aria-hidden
-            />
-            <span className="text-black">Contains an uppercase</span>
-          </li>
-          <li className="flex items-center gap-3">
-            <img
-              src={CheckList}
-              alt=""
-              className={`w-5 h-5 shrink-0 ${passwordMatch ? 'opacity-100' : 'opacity-40'}`}
-              aria-hidden
-            />
-            <span className="text-black">Password match</span>
-          </li>
+        <ul className="space-y-2 list-none p-0 m-0">
+          {requirements.map(({ met, label }) => (
+            <li key={label} className="flex items-center gap-3">
+              <img
+                src={CheckList}
+                alt=""
+                className={`w-5 h-5 shrink-0 transition-opacity ${met ? 'opacity-100' : 'opacity-30'}`}
+                aria-hidden
+              />
+              <span className={`text-sm transition-colors ${met ? 'text-[#005F02] font-medium' : 'text-gray-500'}`}>
+                {label}
+              </span>
+            </li>
+          ))}
         </ul>
 
-        {/* Submit button */}
+        {/* Terms and Conditions — above the submit button */}
+        {!isForgotPassword && (
+          <div className="flex items-start gap-2">
+            <input
+              id="signup-agree-terms"
+              type="checkbox"
+              checked={agreedToTerms}
+              onChange={(e) => setAgreedToTerms(e.target.checked)}
+              className="mt-0.5 h-4 w-4 rounded border-gray-300 accent-[#0096FF] focus:ring-[#005F02]"
+            />
+            <label htmlFor="signup-agree-terms" className="text-sm text-black leading-snug">
+              I agree to the{' '}
+              <button
+                type="button"
+                onClick={() => setShowTermsModal(true)}
+                className="text-blue-600 hover:text-blue-700 underline"
+              >
+                Terms and Conditions.
+              </button>
+            </label>
+          </div>
+        )}
+
+        {/* Submit */}
         <button
           type="submit"
-          disabled={!canSubmit}
-          className="w-full py-3.5 rounded-lg bg-[#005F02] text-white text-base font-bold uppercase tracking-wide hover:bg-[#004A01] transition-colors disabled:opacity-70 disabled:cursor-not-allowed disabled:hover:bg-[#005F02]"
+          disabled={!canSubmit || isLoading}
+          className="w-full py-3.5 rounded-lg bg-[#005F02] text-white text-base font-bold uppercase tracking-wide hover:bg-[#004A01] transition-colors disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-[#005F02]"
         >
-          {isForgotPassword ? 'Update Password' : 'Register'}
+          {isLoading
+            ? 'Creating account…'
+            : isForgotPassword
+              ? 'Update Password'
+              : 'Register'}
         </button>
-
-        {/* Terms and Conditions (signup only) */}
-        {!isForgotPassword && (
-          <>
-            <div className="flex justify-center gap-2">
-              <input
-                id="signup-agree-terms"
-                type="checkbox"
-                checked={agreedToTerms}
-                onChange={(e) => setAgreedToTerms(e.target.checked)}
-                className="mt-0.5   h-4 w-4 rounded border-gray-300 text-[#005F02] focus:ring-[#005F02] accent-[#0096FF]"
-              />
-              <label htmlFor="signup-agree-terms" className="text-sm text-black">
-                I agree to the{' '}
-                <button
-                  type="button"
-                  onClick={() => setShowTermsModal(true)}
-                  className="text-blue-600 hover:text-blue-700 underline inline"
-                >
-                  Terms and Conditions.
-                </button>
-              </label>
-            </div>
-          </>
-        )}
       </form>
 
       {!isForgotPassword && (

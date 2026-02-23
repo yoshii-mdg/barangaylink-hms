@@ -3,7 +3,6 @@ import DashboardHeader from '../components/DashboardHeader';
 import DashboardSidebar from '../components/DashboardSidebar';
 import {
   SearchResidents,
-  SortFilter,
   ResidentTable,
   ResidentPagination,
   ResidentAddEdit,
@@ -113,15 +112,15 @@ export default function Residents() {
       prev.map((r) =>
         r.id === selectedResident.id
           ? {
-              ...r,
-              residentNo: data.idNumber || r.residentNo,
-              name: name || r.name,
-              address: address || r.address,
-              gender: data.gender || r.gender,
-              birthdate: data.birthdate || r.birthdate,
-              contactNo: data.contactNumber || r.contactNo,
-              status: data.status || r.status,
-            }
+            ...r,
+            residentNo: data.idNumber || r.residentNo,
+            name: name || r.name,
+            address: address || r.address,
+            gender: data.gender || r.gender,
+            birthdate: data.birthdate || r.birthdate,
+            contactNo: data.contactNumber || r.contactNo,
+            status: data.status || r.status,
+          }
           : r
       )
     );
@@ -143,7 +142,6 @@ export default function Residents() {
                 <SearchResidents value={search} onChange={setSearch} placeholder="Search" />
                 <div className="inline-flex items-center gap-2">
                   <span className="text-sm font-semibold">Sort By:</span>
-                  <SortFilter value={sortBy} onChange={setSortBy} />
                 </div>
               </div>
               <div className="flex items-center gap-3">

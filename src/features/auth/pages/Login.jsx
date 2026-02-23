@@ -1,25 +1,30 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AuthLayout, Logo } from '../../../shared';
 import { LoginForm } from '../components';
 import { useAuth } from '../../../core/AuthContext';
 
 export default function Login() {
+  const { login, isAuthenticated, isLoading, getDashboardPath } = useAuth();
   const navigate = useNavigate();
-  const { login } = useAuth();
-  const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [error, setError] = useState('');
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+
+  // Navigate only after role has fully loaded
+  useEffect(() => {
+    if (!isLoading && isAuthenticated) {
+      navigate(getDashboardPath(), { replace: true });
+    }
+  }, [isLoading, isAuthenticated]);
 
   const handleSubmit = async ({ email, password }) => {
-    if (isLoggingIn) return;
     setError('');
     setIsLoggingIn(true);
     try {
       await login({ email, password });
-      navigate('/dashboard');
+      // Do NOT navigate here — the useEffect above handles it
     } catch (err) {
-      setError(err.message || 'Login failed. Please check your credentials.');
-    } finally {
+      setError(err.message || 'Invalid email or password.');
       setIsLoggingIn(false);
     }
   };
@@ -45,7 +50,6 @@ export default function Login() {
       <div className="bg-white rounded-2xl shadow-lg p-6 md:p-8 w-full max-w-lg border border-gray-100">
         <LoginForm onSubmit={handleSubmit} isLoading={isLoggingIn} />
 
-        {/* Error message */}
         {error && (
           <p className="mt-4 text-sm text-red-600 text-center bg-red-50 border border-red-200 rounded-lg px-4 py-2">
             {error}

@@ -1,16 +1,17 @@
-import Checklist from '../assets/icons/check-list.svg'
+import Checklist from '../assets/icons/check-list.svg';
 
 /**
  * Reusable content card with optional title, intro paragraph, and checkmark list.
- * Matches the Terms of Service / policy card design: white card, green title, body text, optional list with checkmarks.
+ * Matches the Terms of Service / policy card design.
  *
  * @param {string} title - Card heading (green, bold)
  * @param {string} [intro] - Optional introductory paragraph before list items
- * @param {string[]} [items] - Optional array of strings rendered as bullet list with green checkmarks
- * @param {React.ReactNode} [children] - Custom content (paragraphs, etc.); use instead of or in addition to intro/items
+ * @param {string[]} [items] - Optional array of strings rendered as a checklist
+ * @param {React.ReactNode} [children] - Custom content; use instead of or alongside intro/items
  * @param {string} [className] - Extra class names for the card wrapper
+ *
+ * FIX: text-lb replaced with text-base (text-lb is not a valid Tailwind class)
  */
-
 export default function ContentCard({
   title,
   intro,
@@ -19,9 +20,9 @@ export default function ContentCard({
   className = '',
 }) {
   return (
-    <article className={`bg-white rounded-xl shadow-md p-5 md:p-6  ${className}`}>
+    <article className={`bg-white rounded-xl shadow-md p-5 md:p-6 ${className}`}>
       {title && (
-        <h3 className="text-center text-lb md:text-xl font-bold text-[#005F02] mb-6">
+        <h3 className="text-center text-base md:text-xl font-bold text-[#005F02] mb-6">
           {title}
         </h3>
       )}
@@ -36,7 +37,7 @@ export default function ContentCard({
       )}
 
       {intro && (
-        <p className="text-black text-base md:text-base leading-relaxed mb-4">
+        <p className="text-black text-base leading-relaxed mb-4">
           {intro}
         </p>
       )}
@@ -48,10 +49,10 @@ export default function ContentCard({
               <img
                 src={Checklist}
                 alt=""
-                className="w-5 h-5 mt-0.5 shrink-0 text-[#005F02]"
+                className="w-5 h-5 mt-0.5 shrink-0"
                 aria-hidden
               />
-              <span className="text-black text-base md:text-base leading-relaxed">
+              <span className="text-black text-base leading-relaxed">
                 {item}
               </span>
             </li>
@@ -63,5 +64,3 @@ export default function ContentCard({
     </article>
   );
 }
-``
-

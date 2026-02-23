@@ -1,42 +1,64 @@
-import { NavLink } from 'react-router-dom';
-import { Logo } from '../../../shared';
-import { FiHome,} from 'react-icons/fi';
+import { NavLink, useLocation } from 'react-router-dom';
+import { FiHome } from 'react-icons/fi';
 import { PiUsersThree, PiUsers } from "react-icons/pi";
-import { BsQrCode,} from 'react-icons/bs'
+import { BsQrCode } from 'react-icons/bs';
 import { FaRegAddressCard } from "react-icons/fa";
 import { MdOutlineDashboard } from "react-icons/md";
 import { TbBrandGoogleAnalytics } from "react-icons/tb";
-import LogoDashboard from '../../../assets/images/logo-dashboard.svg'
+import { LuUsers } from "react-icons/lu";
+import LogoDashboard from '../../../assets/images/logo-dashboard.svg';
+import { useAuth } from '../../../core/AuthContext';
+import { ROLES } from '../../../core/AuthContext';
 
+// Build nav sections based on role
+function getNavSections(role) {
+  const prefix = role === ROLES.SUPERADMIN
+    ? '/admin'
+    : role === ROLES.STAFF
+      ? '/staff'
+      : '/resident';
 
-const navSections = [
-  {
-    title: 'General',
-    items: [
-      { to: '/dashboard', label: 'Dashboard', icon: MdOutlineDashboard },
-      { to: '/analytics', label: 'Analytics', icon: TbBrandGoogleAnalytics  },
-    ],
-  },
-  {
-    title: 'Management',
-    items: [
-      { to: '/residents', label: 'Residents', icon: PiUsersThree },
-      { to: '/households', label: 'Households', icon: FiHome },
-      { to: '/eid', label: 'eID', icon: FaRegAddressCard },
-      { to: '/verification', label: 'Verification', icon: BsQrCode },
-      { to: '/profile', label: 'User', icon: PiUsers }
-    ],
-  },
-];
+  const general = [
+    { to: `${prefix}/dashboard`, label: 'Dashboard', icon: MdOutlineDashboard },
+  ];
+
+  if (role !== ROLES.RESIDENT) {
+    general.push({ to: `${prefix}/analytics`, label: 'Analytics', icon: TbBrandGoogleAnalytics });
+  }
+
+  const management = [];
+
+  if (role === ROLES.RESIDENT) {
+    management.push({ to: `${prefix}/eid`, label: 'My eID', icon: FaRegAddressCard });
+    management.push({ to: `${prefix}/profile`, label: 'My Profile', icon: PiUsers });
+  } else {
+    management.push({ to: `${prefix}/residents`, label: 'Residents', icon: PiUsersThree });
+    management.push({ to: `${prefix}/households`, label: 'Households', icon: FiHome });
+    management.push({ to: `${prefix}/eid`, label: 'eID', icon: FaRegAddressCard });
+    management.push({ to: `${prefix}/verification`, label: 'Verification', icon: BsQrCode });
+    management.push({ to: `${prefix}/profile`, label: 'Profile', icon: PiUsers });
+    if (role === ROLES.SUPERADMIN) {
+      management.push({ to: `${prefix}/users`, label: 'User Management', icon: LuUsers });
+    }
+  }
+
+  return [
+    { title: 'General', items: general },
+    { title: 'Management', items: management },
+  ];
+}
 
 export default function DashboardSidebar() {
+  const { userRole } = useAuth();
+  const navSections = getNavSections(userRole);
+
   return (
-    <aside className="w-68 bg-white border-r border-gray-200 min-h-screen">
+    <aside className="w-68 bg-white border-r border-gray-200 min-h-screen flex-shrink-0">
       <div className="px-6 py-6">
-      <img src={LogoDashboard} alt="Logo" className='w-full' />
+        <img src={LogoDashboard} alt="Logo" className='w-full' />
       </div>
 
-      <hr className='border-gray-400 opacity-20 mb-5'></hr>
+      <hr className='border-gray-400 opacity-20 mb-5' />
 
       <nav className="px-4 pb-6">
         {navSections.map((section) => (
@@ -53,17 +75,14 @@ export default function DashboardSidebar() {
                     key={item.to}
                     to={item.to}
                     className={({ isActive }) =>
-                      [
-                        'flex items-center gap-3 px-2 py-2 rounded-lg text-lg transition-colors',
-                        isActive
-                          ? 'bg-[#005F02]/15 text-[#005F02] font-semibold'
-                          : 'text-gray-700 hover:bg-gray-100',
-                      ].join(' ')
+                      `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${isActive
+                        ? 'bg-[#005F02] text-white'
+                        : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
+                      }`
                     }
-                    end={item.to === '/dashboard'}
                   >
-                    <Icon className="w-6 h-6" />
-                    <span>{item.label}</span>
+                    <Icon className="w-5 h-5 shrink-0" />
+                    {item.label}
                   </NavLink>
                 );
               })}
@@ -74,4 +93,3 @@ export default function DashboardSidebar() {
     </aside>
   );
 }
-

@@ -37,7 +37,7 @@ export default function FilterAll({
           <IoLocationSharp className="w-5 h-5 shrink-0 text-gray-600" />
           {selectedFilter}
         </span>
-        <IoIosArrowDown className="w-4 h-4 shrink-0" />
+        <IoIosArrowDown className={`w-4 h-4 shrink-0 transition-transform ${filterAllOpen ? 'rotate-180' : ''}`} />
       </button>
       {filterAllOpen && (
         <div className="absolute top-full left-0 mt-1 py-1 w-full min-w-[100px] bg-white rounded-lg border border-gray-200 shadow-lg z-10">

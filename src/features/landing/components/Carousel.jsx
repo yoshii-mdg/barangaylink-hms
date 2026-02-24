@@ -10,8 +10,12 @@ export default function Carousel({ images = [] }) {
             id: 1,
             src: '/src/assets/images/slides-1.jpg',
             alt: 'Barangay Building 1',
-            loading: 'lazy'
         },
+        {
+            id: 2,
+            src: '/src/assets/images/slides-2.png',
+            alt: 'Barangay Building 2',
+        }
     ];
 
     // Auto-play carousel

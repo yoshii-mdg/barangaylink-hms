@@ -51,8 +51,8 @@ export default function HouseholdTable({ households = [], onEditHousehold, onArc
                 <span
                   className={`inline-block px-4 py-1 rounded-lg text-xs font-medium ${
                     household.status === 'Active'
-                      ? 'bg-emerald-100 text-emerald-800'
-                      : 'bg-red-100 text-red-800'
+                      ? 'bg-emerald-100 px-5 text-emerald-800'
+                      : 'bg-red-100  text-red-800'
                   }`}
                 >
                   {household.status}

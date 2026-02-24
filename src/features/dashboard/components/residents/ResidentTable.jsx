@@ -55,7 +55,7 @@ export default function ResidentTable({ residents = [], onEditResident, onArchiv
                 <span
                   className={`inline-block px-4 py-1 rounded-lg text-xs font-medium ${
                     resident.status === 'Active'
-                      ? 'bg-emerald-100 text-emerald-800'
+                      ? 'bg-emerald-100 px-5 text-emerald-800'
                       : 'bg-red-100 text-red-800'
                   }`}
                 >

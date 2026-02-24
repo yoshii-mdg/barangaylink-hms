@@ -16,7 +16,7 @@ export default function Features() {
     ];
 
     return (
-        <section className="w-full py-15 bg-gray-50 px-8 md:px-40  ">
+        <section className="w-full py-15 bg-gray-50 px-8 md:px-40">
             {/* Text Header */}
             <div className="mx-auto mb-16 ml-10">   
                 <p className="text-lg font-semibold text-[#005F02] mb-2">● Features</p>
@@ -28,7 +28,7 @@ export default function Features() {
                 {features.map((feature) => (
                     <div
                         key={feature.id}
-                        className="border-2 mx- border-[#005F02] rounded-lg p-15 mx-15 flex flex-col items-center text-center bg-white"
+                        className="border-2 mx- border-[#005F02] rounded-lg p-15 mx-15 flex flex-col items-center text-center bg-white hover:shadow-2xl transition-shadow duration-300"
                     >
                         {/* Icon */}
                         <div className="mb-4">

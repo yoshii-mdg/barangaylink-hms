@@ -1,41 +1,155 @@
-import { useState, useEffect, useCallback } from 'react';
+// File: src/features/dashboard/pages/UserManagement.jsx
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../../../core/supabase';
 import { useAuth, ROLES, ROLE_LABELS } from '../../../core/AuthContext';
+import { useToast } from '../../../core/ToastContext';
+import DashboardHeader from '../components/DashboardHeader';
+import DashboardSidebar from '../components/DashboardSidebar';
 import InviteStaffModal from '../components/InviteStaffModal';
-import { LuUserPlus, LuShieldCheck, LuShieldOff, LuRefreshCw, LuSearch } from 'react-icons/lu';
+import { PiUsersFour } from 'react-icons/pi';
+import { LuSearch, LuChevronDown, LuEllipsisVertical, LuUserPlus, LuRefreshCw } from 'react-icons/lu';
 
-const ROLE_BADGE = {
-    superadmin: 'bg-purple-100 text-purple-800',
-    staff: 'bg-blue-100 text-blue-800',
-    resident: 'bg-green-100 text-green-800',
+const ACCESS_LABELS = {
+    superadmin: 'Full Access',
+    staff: 'Limited Access',
+    resident: 'Read-Only',
 };
 
-const STATUS_BADGE = {
-    true: 'bg-emerald-100 text-emerald-800',
-    false: 'bg-red-100 text-red-800',
-};
+const TABS = [
+    { key: 'all', label: 'All' },
+    { key: 'superadmin', label: 'Super Admin' },
+    { key: 'staff', label: 'Staff' },
+    { key: 'resident', label: 'Resident' },
+];
+
+const SORT_OPTIONS = [
+    { value: 'name-asc', label: 'Name (A–Z)' },
+    { value: 'name-desc', label: 'Name (Z–A)' },
+    { value: 'role', label: 'Role' },
+    { value: 'status', label: 'Status' },
+];
+
+function SortDropdown({ label, options, value, onChange }) {
+    const [open, setOpen] = useState(false);
+    const ref = useRef(null);
+
+    useEffect(() => {
+        const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+        document.addEventListener('mousedown', h);
+        return () => document.removeEventListener('mousedown', h);
+    }, []);
+
+    return (
+        <div ref={ref} className="relative">
+            <button
+                onClick={() => setOpen(!open)}
+                className="flex items-center gap-1.5 h-9 px-4 rounded-lg border border-gray-200 bg-white text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+                {label}
+                <LuChevronDown className={`w-3.5 h-3.5 text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+            </button>
+            {open && (
+                <div className="absolute right-0 top-full mt-1 w-44 bg-white border border-gray-200 rounded-xl shadow-lg z-20 overflow-hidden">
+                    {options.map(opt => (
+                        <button
+                            key={opt.value}
+                            onClick={() => { onChange(opt.value); setOpen(false); }}
+                            className={`w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-[#F1F7F2] ${value === opt.value ? 'text-[#005F02] font-semibold' : 'text-gray-700'}`}
+                        >
+                            {opt.label}
+                        </button>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+}
+
+function ActionMenu({ targetUser, currentUserId, onPromote, onDemote, onDeactivate, onReactivate, isProcessing }) {
+    const [open, setOpen] = useState(false);
+    const ref = useRef(null);
+
+    useEffect(() => {
+        const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+        document.addEventListener('mousedown', h);
+        return () => document.removeEventListener('mousedown', h);
+    }, []);
+
+    if (targetUser.user_id === currentUserId) return <span className="text-gray-300">—</span>;
+
+    const canPromoteToStaff = targetUser.role === ROLES.RESIDENT && targetUser.is_active;
+    const canPromoteToAdmin = targetUser.role === ROLES.STAFF && targetUser.is_active;
+    const canDemote = (targetUser.role === ROLES.STAFF || targetUser.role === ROLES.SUPERADMIN) && targetUser.is_active;
+    const hasRoleActions = canPromoteToStaff || canPromoteToAdmin || canDemote;
+
+    return (
+        <div ref={ref} className="relative flex justify-center">
+            <button
+                disabled={isProcessing}
+                onClick={() => setOpen(!open)}
+                className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-40"
+            >
+                <LuEllipsisVertical className="w-4 h-4" />
+            </button>
+            {open && (
+                <div className="absolute right-0 top-full mt-1 w-52 bg-white border border-gray-200 rounded-xl shadow-xl z-30 overflow-hidden py-1">
+                    {canPromoteToStaff && (
+                        <button onClick={() => { onPromote(targetUser); setOpen(false); }}
+                            className="w-full text-left px-4 py-2 text-sm text-blue-700 hover:bg-blue-50 transition-colors">
+                            Promote to Staff
+                        </button>
+                    )}
+                    {canPromoteToAdmin && (
+                        <button onClick={() => { onPromote(targetUser); setOpen(false); }}
+                            className="w-full text-left px-4 py-2 text-sm text-purple-700 hover:bg-purple-50 transition-colors">
+                            Promote to Admin
+                        </button>
+                    )}
+                    {canDemote && (
+                        <button onClick={() => { onDemote(targetUser); setOpen(false); }}
+                            className="w-full text-left px-4 py-2 text-sm text-orange-700 hover:bg-orange-50 transition-colors">
+                            Demote to Resident
+                        </button>
+                    )}
+                    {hasRoleActions && <hr className="border-gray-100 my-1" />}
+                    {targetUser.is_active ? (
+                        <button onClick={() => { onDeactivate(targetUser); setOpen(false); }}
+                            className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors">
+                            Disable Account
+                        </button>
+                    ) : (
+                        <button onClick={() => { onReactivate(targetUser); setOpen(false); }}
+                            className="w-full text-left px-4 py-2 text-sm text-emerald-700 hover:bg-emerald-50 transition-colors">
+                            Enable Account
+                        </button>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+}
 
 export default function UserManagement() {
-    const { user, changeUserRole, deactivateUser, reactivateUser, inviteStaff } = useAuth();
+    const { user, changeUserRole, deactivateUser, reactivateUser, inviteStaff, userRole } = useAuth();
+    const toast = useToast();
 
     const [users, setUsers] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState('');
     const [search, setSearch] = useState('');
-    const [roleFilter, setRoleFilter] = useState('all');
+    const [activeTab, setActiveTab] = useState('all');
+    const [sortBy, setSortBy] = useState('name-asc');
     const [showInviteModal, setShowInviteModal] = useState(false);
-    const [actionLoading, setActionLoading] = useState(null); // userId of in-progress action
+    const [actionLoading, setActionLoading] = useState(null);
 
-    // ── Fetch all users ──────────────────────────────────────────────────────
     const fetchUsers = useCallback(async () => {
         setIsLoading(true);
         setError('');
         try {
             const { data, error } = await supabase
                 .from('users_tbl')
-                .select('user_id, email, first_name, middle_name, last_name, role, is_active, invited_by')
+                .select('user_id, first_name, middle_name, last_name, role, is_active')
                 .order('last_name', { ascending: true });
-
             if (error) throw error;
             setUsers(data ?? []);
         } catch (err) {
@@ -45,223 +159,247 @@ export default function UserManagement() {
         }
     }, []);
 
-    useEffect(() => {
-        fetchUsers();
-    }, [fetchUsers]);
+    useEffect(() => { fetchUsers(); }, [fetchUsers]);
 
-    // ── Filtered list ────────────────────────────────────────────────────────
-    const filtered = users.filter((u) => {
-        const fullName = `${u.first_name} ${u.middle_name ?? ''} ${u.last_name}`.toLowerCase();
-        const matchSearch =
-            !search ||
-            fullName.includes(search.toLowerCase()) ||
-            u.email?.toLowerCase().includes(search.toLowerCase());
-        const matchRole = roleFilter === 'all' || u.role === roleFilter;
-        return matchSearch && matchRole;
-    });
+    const counts = {
+        all: users.length,
+        superadmin: users.filter(u => u.role === ROLES.SUPERADMIN).length,
+        staff: users.filter(u => u.role === ROLES.STAFF).length,
+        resident: users.filter(u => u.role === ROLES.RESIDENT).length,
+    };
 
-    // ── Actions ──────────────────────────────────────────────────────────────
+    const filtered = users
+        .filter(u => {
+            const fullName = `${u.first_name ?? ''} ${u.middle_name ?? ''} ${u.last_name ?? ''}`.toLowerCase();
+            const matchSearch = !search || fullName.includes(search.toLowerCase());
+            const matchTab = activeTab === 'all' || u.role === activeTab;
+            return matchSearch && matchTab;
+        })
+        .sort((a, b) => {
+            const na = `${a.first_name ?? ''} ${a.last_name ?? ''}`.toLowerCase();
+            const nb = `${b.first_name ?? ''} ${b.last_name ?? ''}`.toLowerCase();
+            if (sortBy === 'name-asc') return na.localeCompare(nb);
+            if (sortBy === 'name-desc') return nb.localeCompare(na);
+            if (sortBy === 'role') return (a.role ?? '').localeCompare(b.role ?? '');
+            if (sortBy === 'status') return String(b.is_active).localeCompare(String(a.is_active));
+            return na.localeCompare(nb);
+        });
+
     const handleAction = async (action, targetUserId, ...args) => {
         setActionLoading(targetUserId);
-        setError('');
         try {
             await action(targetUserId, ...args);
-            await fetchUsers(); // refresh list
+            await fetchUsers();
+            return true;
         } catch (err) {
-            setError(err.message || 'Action failed. Please try again.');
+            toast.error('Action Failed', err.message || 'Please try again.');
+            return false;
         } finally {
             setActionLoading(null);
         }
     };
 
+    const handlePromote = async (u) => {
+        const name = `${u.first_name} ${u.last_name}`;
+        let newRole, msg;
+        if (u.role === ROLES.RESIDENT) { newRole = ROLES.STAFF; msg = `${name} is now Barangay Staff.`; }
+        else if (u.role === ROLES.STAFF) { newRole = ROLES.SUPERADMIN; msg = `${name} is now a Super Admin.`; }
+        else return;
+        const ok = await handleAction(changeUserRole, u.user_id, newRole);
+        if (ok) toast.success('Account Promoted', msg);
+    };
+
+    const handleDemote = async (u) => {
+        const name = `${u.first_name} ${u.last_name}`;
+        const ok = await handleAction(changeUserRole, u.user_id, ROLES.RESIDENT);
+        if (ok) toast.success('Account Demoted', `${name} has been demoted to Resident.`);
+    };
+
+    const handleDeactivate = async (u) => {
+        const name = `${u.first_name} ${u.last_name}`;
+        const ok = await handleAction(deactivateUser, u.user_id);
+        if (ok) toast.warning('Account Disabled', `${name}'s account has been disabled.`);
+    };
+
+    const handleReactivate = async (u) => {
+        const name = `${u.first_name} ${u.last_name}`;
+        const ok = await handleAction(reactivateUser, u.user_id);
+        if (ok) toast.success('Account Enabled', `${name}'s account has been enabled.`);
+    };
+
     const handleInvite = async (email) => {
-        setError('');
         try {
             await inviteStaff(email);
             setShowInviteModal(false);
-            // We can't immediately show the new user until they accept the invite,
-            // but refresh anyway in case the DB row was created.
             await fetchUsers();
+            toast.success('Invitation Sent', `Invitation sent to ${email}.`);
         } catch (err) {
-            throw err; // Let InviteStaffModal display the error
+            toast.error('Invitation Failed', err.message || 'Could not send the invitation.');
         }
     };
 
-    // ── Render ───────────────────────────────────────────────────────────────
     return (
-        <div className="p-6 space-y-6">
-            {/* Page header */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div>
-                    <h1 className="text-2xl font-bold text-gray-900">User Management</h1>
-                    <p className="text-sm text-gray-500 mt-0.5">
-                        Manage accounts, roles, and access for all registered users.
-                    </p>
-                </div>
-                <button
-                    onClick={() => setShowInviteModal(true)}
-                    className="flex items-center gap-2 bg-[#005F02] text-white px-4 py-2.5 rounded-lg font-semibold text-sm hover:bg-[#004A01] transition-colors"
-                >
-                    <LuUserPlus className="w-4 h-4" />
-                    Invite Staff
-                </button>
-            </div>
+        <div className="min-h-screen flex bg-[#F3F7F3]">
+            <DashboardSidebar />
 
-            {/* Filters */}
-            <div className="flex flex-col sm:flex-row gap-3">
-                <div className="relative flex-1">
-                    <LuSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                    <input
-                        type="text"
-                        placeholder="Search by name or email…"
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        className="w-full pl-9 pr-4 py-2.5 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#005F02]/30 focus:border-[#005F02]"
-                    />
-                </div>
-                <select
-                    value={roleFilter}
-                    onChange={(e) => setRoleFilter(e.target.value)}
-                    className="px-4 py-2.5 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#005F02]/30 focus:border-[#005F02] bg-white"
-                >
-                    <option value="all">All Roles</option>
-                    <option value={ROLES.SUPERADMIN}>Super Admin</option>
-                    <option value={ROLES.STAFF}>Staff</option>
-                    <option value={ROLES.RESIDENT}>Resident</option>
-                </select>
-                <button
-                    onClick={fetchUsers}
-                    className="flex items-center gap-2 px-4 py-2.5 rounded-lg border border-gray-300 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
-                    title="Refresh"
-                >
-                    <LuRefreshCw className="w-4 h-4" />
-                    <span className="hidden sm:inline">Refresh</span>
-                </button>
-            </div>
+            <div className="flex-1 flex flex-col min-w-0">
+                <DashboardHeader title="User" />
 
-            {/* Error banner */}
-            {error && (
-                <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3">
-                    {error}
-                </div>
-            )}
+                <main className="flex-1 p-6">
+                    {error && (
+                        <div className="mb-4 bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">
+                            {error}
+                        </div>
+                    )}
 
-            {/* Table */}
-            {isLoading ? (
-                <div className="text-center py-16 text-gray-400 text-sm">Loading users…</div>
-            ) : filtered.length === 0 ? (
-                <div className="text-center py-16 text-gray-400 text-sm">No users found.</div>
-            ) : (
-                <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
-                    <table className="w-full text-sm">
-                        <thead>
-                            <tr className="bg-gray-50 border-b border-gray-200 text-left text-gray-500 uppercase text-xs tracking-wide">
-                                <th className="px-4 py-3 font-semibold">Name</th>
-                                <th className="px-4 py-3 font-semibold">Email</th>
-                                <th className="px-4 py-3 font-semibold">Role</th>
-                                <th className="px-4 py-3 font-semibold">Status</th>
-                                <th className="px-4 py-3 font-semibold text-right">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                            {filtered.map((u) => {
-                                const isSelf = u.user_id === user?.id;
-                                const isLoading = actionLoading === u.user_id;
-                                const fullName = [u.first_name, u.middle_name, u.last_name]
-                                    .filter(Boolean)
-                                    .join(' ') || '—';
+                    {/* Main card */}
+                    <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-visible">
+                        {/* Card header */}
+                        <div className="px-6 pt-6 pb-0">
+                            <div className="flex items-center justify-between mb-5">
+                                {/* Title */}
+                                <div className="flex items-center gap-3">
+                                    <div className="w-9 h-9 rounded-full bg-[#E8F5E9] flex items-center justify-center">
+                                        <PiUsersFour className="w-5 h-5 text-[#005F02]" />
+                                    </div>
+                                    <h2 className="text-lg font-bold text-gray-900">User Accounts</h2>
+                                </div>
 
-                                return (
-                                    <tr key={u.user_id} className="hover:bg-gray-50 transition-colors">
-                                        <td className="px-4 py-3 font-medium text-gray-900">
-                                            {fullName}
-                                            {isSelf && (
-                                                <span className="ml-2 text-xs text-gray-400">(you)</span>
-                                            )}
-                                        </td>
-                                        <td className="px-4 py-3 text-gray-600">{u.email || '—'}</td>
-                                        <td className="px-4 py-3">
-                                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${ROLE_BADGE[u.role] ?? 'bg-gray-100 text-gray-700'}`}>
-                                                {ROLE_LABELS[u.role] ?? u.role}
-                                            </span>
-                                        </td>
-                                        <td className="px-4 py-3">
-                                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${STATUS_BADGE[String(u.is_active)]}`}>
-                                                {u.is_active ? 'Active' : 'Deactivated'}
-                                            </span>
-                                        </td>
-                                        <td className="px-4 py-3">
-                                            <div className="flex items-center justify-end gap-2 flex-wrap">
-                                                {/* Promotion actions — disabled for self */}
-                                                {!isSelf && u.role === ROLES.RESIDENT && u.is_active && (
-                                                    <button
-                                                        disabled={isLoading}
-                                                        onClick={() => handleAction(changeUserRole, u.user_id, ROLES.STAFF)}
-                                                        className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 disabled:opacity-50 transition-colors"
-                                                        title="Promote to Staff"
-                                                    >
-                                                        <LuShieldCheck className="w-3.5 h-3.5" />
-                                                        Promote to Staff
-                                                    </button>
-                                                )}
-                                                {!isSelf && u.role === ROLES.STAFF && u.is_active && (
-                                                    <button
-                                                        disabled={isLoading}
-                                                        onClick={() => handleAction(changeUserRole, u.user_id, ROLES.SUPERADMIN)}
-                                                        className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-purple-50 text-purple-700 hover:bg-purple-100 disabled:opacity-50 transition-colors"
-                                                        title="Promote to Super Admin"
-                                                    >
-                                                        <LuShieldCheck className="w-3.5 h-3.5" />
-                                                        Promote to Admin
-                                                    </button>
-                                                )}
+                                {/* Controls */}
+                                <div className="flex items-center gap-2">
+                                    <div className="relative">
+                                        <LuSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                                        <input
+                                            type="text"
+                                            placeholder="Search"
+                                            value={search}
+                                            onChange={e => setSearch(e.target.value)}
+                                            className="pl-9 pr-3 h-9 w-52 rounded-lg border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#005F02]/20 focus:border-[#005F02]"
+                                        />
+                                    </div>
 
-                                                {/* Deactivate / Reactivate — never for self */}
-                                                {!isSelf && u.is_active && (
-                                                    <button
-                                                        disabled={isLoading}
-                                                        onClick={() => {
-                                                            if (window.confirm(`Deactivate ${fullName}'s account? They will be immediately locked out.`)) {
-                                                                handleAction(deactivateUser, u.user_id);
-                                                            }
-                                                        }}
-                                                        className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-red-50 text-red-700 hover:bg-red-100 disabled:opacity-50 transition-colors"
-                                                        title="Deactivate account"
-                                                    >
-                                                        <LuShieldOff className="w-3.5 h-3.5" />
-                                                        Deactivate
-                                                    </button>
-                                                )}
-                                                {!isSelf && !u.is_active && (
-                                                    <button
-                                                        disabled={isLoading}
-                                                        onClick={() => handleAction(reactivateUser, u.user_id)}
-                                                        className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 disabled:opacity-50 transition-colors"
-                                                        title="Reactivate account"
-                                                    >
-                                                        <LuShieldCheck className="w-3.5 h-3.5" />
-                                                        Reactivate
-                                                    </button>
-                                                )}
+                                    <SortDropdown label="Sort By" options={SORT_OPTIONS} value={sortBy} onChange={setSortBy} />
 
-                                                {isSelf && (
-                                                    <span className="text-xs text-gray-400 italic">—</span>
-                                                )}
-                                            </div>
-                                        </td>
+                                    <button
+                                        onClick={fetchUsers}
+                                        title="Refresh"
+                                        className="flex items-center justify-center w-9 h-9 rounded-lg border border-gray-200 bg-white text-gray-500 hover:bg-gray-50 transition-colors"
+                                    >
+                                        <LuRefreshCw className="w-3.5 h-3.5" />
+                                    </button>
+
+                                    <button
+                                        onClick={() => setShowInviteModal(true)}
+                                        className="flex items-center gap-2 h-9 px-4 rounded-lg bg-[#005F02] text-white text-sm font-medium hover:bg-[#004A01] transition-colors"
+                                    >
+                                        <LuUserPlus className="w-4 h-4" />
+                                        Invite Staff
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Tabs */}
+                            <div className="flex border-b border-gray-200">
+                                {TABS.map(tab => (
+                                    <button
+                                        key={tab.key}
+                                        onClick={() => setActiveTab(tab.key)}
+                                        className={`px-5 py-2.5 text-sm font-medium transition-colors relative whitespace-nowrap ${
+                                            activeTab === tab.key
+                                                ? 'text-[#005F02]'
+                                                : 'text-gray-500 hover:text-gray-700'
+                                        }`}
+                                    >
+                                        {tab.label}
+                                        <span className="ml-1 text-xs text-gray-400">({counts[tab.key]})</span>
+                                        {activeTab === tab.key && (
+                                            <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#005F02] rounded-t-full" />
+                                        )}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Table */}
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                                <thead className="bg-[#F1F7F2]">
+                                    <tr className="border-b border-gray-100">
+                                        <th className="text-left px-6 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide">Name</th>
+                                        <th className="text-left px-6 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide">Role</th>
+                                        <th className="text-left px-6 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide">Access</th>
+                                        <th className="text-left px-6 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide">Status</th>
+                                        <th className="px-6 py-3 w-10"></th>
                                     </tr>
-                                );
-                            })}
-                        </tbody>
-                    </table>
-                </div>
-            )}
+                                </thead>
+                                <tbody>
+                                    {isLoading ? (
+                                        <tr>
+                                            <td colSpan={5} className="text-center py-16 text-gray-400">
+                                                Loading users…
+                                            </td>
+                                        </tr>
+                                    ) : filtered.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={5} className="text-center py-16 text-gray-400">
+                                                No users found.
+                                            </td>
+                                        </tr>
+                                    ) : filtered.map((u, idx) => {
+                                        const fullName = [u.first_name, u.middle_name, u.last_name].filter(Boolean).join(' ') || '—';
+                                        const isProcessing = actionLoading === u.user_id;
 
-            {/* Invite modal */}
+                                        return (
+                                            <tr
+                                                key={u.user_id}
+                                                className={`border-b border-gray-50 last:border-0 hover:bg-[#F8FBF8] transition-colors ${isProcessing ? 'opacity-50' : ''}`}
+                                            >
+                                                <td className="px-6 py-3.5 font-medium text-gray-900">
+                                                    {fullName}
+                                                    {u.user_id === user?.id && (
+                                                        <span className="ml-2 text-xs text-gray-400 font-normal">(you)</span>
+                                                    )}
+                                                </td>
+                                                <td className="px-6 py-3.5 text-gray-700">
+                                                    {ROLE_LABELS[u.role] ?? u.role ?? '—'}
+                                                </td>
+                                                <td className="px-6 py-3.5 text-gray-500">
+                                                    {ACCESS_LABELS[u.role] ?? '—'}
+                                                </td>
+                                                <td className="px-6 py-3.5">
+                                                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
+                                                        u.is_active
+                                                            ? 'bg-[#E8F5E9] text-[#2E7D32]'
+                                                            : 'bg-gray-100 text-gray-500'
+                                                    }`}>
+                                                        {u.is_active ? 'Enabled' : 'Disabled'}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-3.5 text-center">
+                                                    <ActionMenu
+                                                        targetUser={u}
+                                                        currentUserId={user?.id}
+                                                        onPromote={handlePromote}
+                                                        onDemote={handleDemote}
+                                                        onDeactivate={handleDeactivate}
+                                                        onReactivate={handleReactivate}
+                                                        isProcessing={isProcessing}
+                                                    />
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </main>
+            </div>
+
             <InviteStaffModal
                 isOpen={showInviteModal}
-                onClose={() => setShowInviteModal(false)}
                 onInvite={handleInvite}
+                onClose={() => setShowInviteModal(false)}
             />
         </div>
     );

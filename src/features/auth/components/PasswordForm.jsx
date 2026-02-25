@@ -15,6 +15,7 @@ export default function PasswordForm({ onSubmit, isLoading = false, variant = 's
   const [showTermsModal, setShowTermsModal] = useState(false);
 
   const isForgotPassword = variant === 'forgotPassword';
+  const isAcceptInvitation = variant === 'acceptInvitation';
 
   const hasMinLength = password.length >= 8;
   const hasNumber = /\d/.test(password);
@@ -22,7 +23,7 @@ export default function PasswordForm({ onSubmit, isLoading = false, variant = 's
   const passwordMatch = password !== '' && password === confirmPassword;
 
   const allRequirementsMet = hasMinLength && hasNumber && hasUppercase && passwordMatch;
-  const canSubmit = isForgotPassword
+  const canSubmit = isForgotPassword || isAcceptInvitation
     ? allRequirementsMet
     : allRequirementsMet && agreedToTerms;
 
@@ -118,7 +119,7 @@ export default function PasswordForm({ onSubmit, isLoading = false, variant = 's
         </ul>
 
         {/* Terms and Conditions — above the submit button */}
-        {!isForgotPassword && (
+        {!isForgotPassword && !isAcceptInvitation && (
           <div className="flex items-start gap-2">
             <input
               id="signup-agree-terms"
@@ -147,14 +148,16 @@ export default function PasswordForm({ onSubmit, isLoading = false, variant = 's
           className="w-full py-3.5 rounded-lg bg-[#005F02] text-white text-base font-bold uppercase tracking-wide hover:bg-[#004A01] transition-colors disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-[#005F02]"
         >
           {isLoading
-            ? 'Creating account…'
+            ? 'Setting password…'
             : isForgotPassword
               ? 'Update Password'
-              : 'Register'}
+              : isAcceptInvitation
+                ? 'Set Password'
+                : 'Register'}
         </button>
       </form>
 
-      {!isForgotPassword && (
+      {!isForgotPassword && !isAcceptInvitation && (
         <AgreementModal
           isOpen={showTermsModal}
           onClose={() => setShowTermsModal(false)}

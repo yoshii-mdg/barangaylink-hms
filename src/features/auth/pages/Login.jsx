@@ -3,28 +3,40 @@ import { Link, useNavigate } from 'react-router-dom';
 import { AuthLayout, Logo } from '../../../shared';
 import { LoginForm } from '../components';
 import { useAuth } from '../../../core/AuthContext';
+import { useToast } from '../../../core/ToastContext';
 
 export default function Login() {
   const { login, isAuthenticated, isLoading, getDashboardPath } = useAuth();
   const navigate = useNavigate();
+  const toast = useToast();
   const [error, setError] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
-  // Navigate only after role has fully loaded
+  // Navigate only after role has fully loaded and no login in progress
   useEffect(() => {
-    if (!isLoading && isAuthenticated) {
+    if (!isLoading && isAuthenticated && !isLoggingIn && !error) {
       navigate(getDashboardPath(), { replace: true });
     }
-  }, [isLoading, isAuthenticated]);
+  }, [isLoading, isAuthenticated, isLoggingIn, error]);
 
   const handleSubmit = async ({ email, password }) => {
     setError('');
     setIsLoggingIn(true);
     try {
       await login({ email, password });
+      toast.success('Welcome back!', 'You have been logged in successfully.');
       // Do NOT navigate here — the useEffect above handles it
     } catch (err) {
-      setError(err.message || 'Invalid email or password.');
+      const msg = err.message || 'Invalid email or password.';
+
+      // Show a more specific toast for deactivated accounts
+      if (msg.toLowerCase().includes('deactivated')) {
+        toast.error('Account Deactivated', 'Your account has been deactivated. Please contact an administrator.');
+      } else {
+        toast.error('Login Failed', msg);
+      }
+
+      setError(msg);
       setIsLoggingIn(false);
     }
   };
@@ -62,7 +74,7 @@ export default function Login() {
             to="/signup"
             className="text-blue-600 hover:text-blue-700 hover:underline font-medium transition-colors"
           >
-            Click Here
+            Sign Up
           </Link>
         </p>
       </div>

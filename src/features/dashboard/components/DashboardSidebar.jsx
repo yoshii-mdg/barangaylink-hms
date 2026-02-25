@@ -23,7 +23,7 @@ const navSections = [
       { to: '/residents', label: 'Residents', icon: PiUsersThree },
       { to: '/households', label: 'Households', icon: FiHome },
       { to: '/eid', label: 'eID', icon: FaRegAddressCard },
-      { to: '/verification', label: 'Verification', icon: BsQrCode },
+      { to: '/verification', label: 'QR Verification', icon: BsQrCode },
       { to: '/profile', label: 'User', icon: PiUsers }
     ],
   },

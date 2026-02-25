@@ -2,7 +2,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { LandingPage, Privacy, Terms, Contact } from '../features/landing'
 import { ScrollToTop } from "../shared";
 import { Login, SignUp, ForgotPassword } from '../features/auth'
-import { Dashboard, Analytics, Residents, Households } from '../features/dashboard'
+import { Dashboard, Analytics, Residents, Households, Eid } from '../features/dashboard'
 
 function AppRoutes() {
   return (
@@ -22,6 +22,7 @@ function AppRoutes() {
         <Route path='/analytics' element={<Analytics />} />
         <Route path='/residents' element={<Residents />} />
         <Route path='/households' element={<Households />} />
+        <Route path='/eid' element={<Eid />} />
       </Routes>
     </BrowserRouter>
   )

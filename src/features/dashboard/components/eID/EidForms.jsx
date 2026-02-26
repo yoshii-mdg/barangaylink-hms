@@ -53,7 +53,7 @@ export default function EidForms({ value = {}, onChange, fullName = '' }) {
       {/* Top Section: Profile Left, ID/Names Right */}
       <div className="flex gap-8">
         {/* Left: Photo section */}
-        <div className="flex flex-col items-center shrink-0 w-40">
+        <div className="flex flex-col items-center m-5 shrink-0 w-40">
           <div className="relative">
             <EIdProfile
               name={fullName}

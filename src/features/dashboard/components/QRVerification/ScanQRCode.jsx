@@ -25,7 +25,7 @@ export default function ScanQRCode({ onVerify }) {
   };
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 flex flex-col w-full">
+    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 flex flex-col w-full sm:w-[650px]">
       {/* Section Title */}
       <div className="bg-[#F1F7F2] rounded-t-lg px-6 sm:px-10 py-3 mb-6 -mx-6 -my-6 border border-gray-200">
         <h3 className="text-xl sm:text-[24px] font-semibold">Scan QR Code</h3>

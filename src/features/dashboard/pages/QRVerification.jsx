@@ -1,18 +1,20 @@
+import { useState } from 'react';
 import DashboardHeader from '../components/DashboardHeader';
 import DashboardSidebar from '../components/DashboardSidebar';
 import ScanQRCode from '../components/qrVerification/ScanQRCode';
 import UploadQRCode from '../components/qrVerification/UploadQRCode';
 
 export default function QRVerification() {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const handleVerify = (code) => {
     console.log('QR Code verified:', code);
   };
 
   return (
     <div className="flex h-screen bg-[#F3F7F3]">
-      <DashboardSidebar />
+      <DashboardSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <div className="flex-1 flex flex-col">
-        <DashboardHeader title="QR Verification" />
+        <DashboardHeader title="QR Verification" onMenuToggle={() => setSidebarOpen(o => !o)} />
         <div className="flex-1 overflow-auto">
           <div className="p-3 mx-auto w-full max-w-7xl">
 

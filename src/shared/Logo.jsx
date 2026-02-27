@@ -26,6 +26,7 @@ export default function Logo({ variant = 'auth', className = '' }) {
         src={logo}
         alt=""
         className={isNavbar ? 'w-16 h-16' : isDashboard ? 'w-12 h-12' : 'h-12 md:h-14 w-auto'}
+        loading="lazy"
       />
       <div className={isNavbar || isDashboard ? 'flex flex-col gap-0.5' : ''}>
         <p

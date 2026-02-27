@@ -22,7 +22,7 @@ const FormField = ({ label, children }) => (
 
 export default function EidForms({ value = {}, onChange, fullName = '' }) {
   const fileInputRef = useRef(null);
-  
+
   const update = (field, val) => onChange?.({ ...value, [field]: val });
 
   const handlePhotoChange = (e) => {
@@ -33,7 +33,7 @@ export default function EidForms({ value = {}, onChange, fullName = '' }) {
         alert('File size must be under 2MB');
         return;
       }
-      
+
       // Check file type
       if (!['image/png', 'image/jpeg'].includes(file.type)) {
         alert('Only PNG and JPG files are supported');
@@ -51,13 +51,13 @@ export default function EidForms({ value = {}, onChange, fullName = '' }) {
   return (
     <div className="flex flex-col gap-6">
       {/* Top Section: Profile Left, ID/Names Right */}
-      <div className="flex gap-8">
+      <div className="flex flex-col sm:flex-row gap-6 sm:gap-8">
         {/* Left: Photo section */}
-        <div className="flex flex-col items-center m-5 shrink-0 w-40">
+        <div className="flex flex-col items-center sm:m-5 shrink-0 sm:w-40">
           <div className="relative">
             <EIdProfile
               name={fullName}
-              size={190}
+              size={150}
               photoUrl={value.photo}
               className="rounded-lg"
             />
@@ -99,7 +99,7 @@ export default function EidForms({ value = {}, onChange, fullName = '' }) {
             </FormField>
 
             {/* Last Name and First Name */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <FormField label="Last Name:">
                 <div className={inputWrapperClass}>
                   <input
@@ -124,7 +124,7 @@ export default function EidForms({ value = {}, onChange, fullName = '' }) {
             </div>
 
             {/* Middle Name and Suffix */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <FormField label="Middle Name:">
                 <div className={inputWrapperClass}>
                   <input
@@ -155,7 +155,7 @@ export default function EidForms({ value = {}, onChange, fullName = '' }) {
       {/* Bottom Section: Birthdate, Gender, Address, Contact, Email */}
       <div className="space-y-4">
         {/* Birthdate and Gender */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <FormField label="Birthdate:">
             <div className={inputWrapperClass}>
               <div className={iconWrapperClass}>

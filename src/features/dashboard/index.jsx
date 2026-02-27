@@ -4,3 +4,4 @@ export { default as Residents } from './pages/Residents';
 export { default as Households } from './pages/Households';
 export { default as Eid } from './pages/Eid';
 export { default as QRVerification } from './pages/QRVerification';
+export { default as UserAccount } from './pages/UserAccount';

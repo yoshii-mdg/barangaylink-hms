@@ -25,16 +25,16 @@ export default function ScanQRCode({ onVerify }) {
   };
 
   return (
-    <div className="bg-white rounded-xl border w-[540px] h-[760px] border-gray-200 shadow-sm p-6 flex flex-col">
+    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 flex flex-col w-full">
       {/* Section Title */}
-      <div className="bg-[#F1F7F2] rounded-t-lg px-10 py-3 mb-6 -mx-6 -my-6 border border-gray-200">
-        <h3 className="text-[24px] font-semibold ">Scan QR Code</h3>
+      <div className="bg-[#F1F7F2] rounded-t-lg px-6 sm:px-10 py-3 mb-6 -mx-6 -my-6 border border-gray-200">
+        <h3 className="text-xl sm:text-[24px] font-semibold">Scan QR Code</h3>
       </div>
 
       {/* QR Code Display Area */}
-      <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 mx-auto flex items-center justify-center bg-gray-50 mb-6 w-[400px] h-[260px]">
+      <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 sm:p-8 mx-auto flex items-center justify-center bg-gray-50 mb-6 w-full max-w-[400px] min-h-[180px] sm:min-h-[220px]">
         <div className="text-center">
-          <BsQrCode className="w-24 h-24 text-gray-400 mx-auto mb-2" />
+          <BsQrCode className="w-16 h-16 sm:w-24 sm:h-24 text-gray-400 mx-auto mb-2" />
           <p className="text-gray-400 text-sm">QR Code will appear here</p>
         </div>
       </div>
@@ -71,11 +71,10 @@ export default function ScanQRCode({ onVerify }) {
               <span className="text-sm text-gray-700">{item.name}</span>
               <div className="flex items-center gap-3">
                 <span
-                  className={`text-xs font-medium ${
-                    item.status === 'Active'
+                  className={`text-xs font-medium ${item.status === 'Active'
                       ? 'text-[#005F02]'
                       : 'text-red-600'
-                  }`}
+                    }`}
                 >
                   {item.status}
                 </span>

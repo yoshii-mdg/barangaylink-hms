@@ -23,8 +23,8 @@ export default function HouseholdTable({ households = [], onEditHousehold, onArc
   };
 
   return (
-    <div className="overflow-visible">
-      <table className="w-full text-base relative">
+    <div className="overflow-x-auto w-full">
+      <table className="w-full min-w-[600px] text-base relative">
         <thead>
           <tr className="text-left text-sm bg-[#F1F7F2] text-gray-700 border-b border-gray-200">
             <th className="py-3 px-4 font-semibold">Household No.</th>
@@ -39,9 +39,8 @@ export default function HouseholdTable({ households = [], onEditHousehold, onArc
           {households.map((household, idx) => (
             <tr
               key={household.id ?? idx}
-              className={`border-b border-gray-100 border-l border-r last:border-b-0 ${
-                idx % 2 === 1 ? 'bg-gray-50' : 'bg-white'
-              } hover:bg-gray-50/80 transition-colors`}
+              className={`border-b border-gray-100 border-l border-r last:border-b-0 ${idx % 2 === 1 ? 'bg-gray-50' : 'bg-white'
+                } hover:bg-gray-50/80 transition-colors`}
             >
               <td className="py-3 px-4 text-gray-800">{household.householdNo}</td>
               <td className="py-3 px-4 text-gray-800">{household.headMemberName}</td>
@@ -49,11 +48,10 @@ export default function HouseholdTable({ households = [], onEditHousehold, onArc
               <td className="py-3 px-4 text-gray-800">{household.members}</td>
               <td className="py-3 px-4">
                 <span
-                  className={`inline-block px-4 py-1 rounded-lg text-xs font-medium ${
-                    household.status === 'Active'
+                  className={`inline-block px-4 py-1 rounded-lg text-xs font-medium ${household.status === 'Active'
                       ? 'bg-emerald-100 px-5 text-emerald-800'
                       : 'bg-red-100  text-red-800'
-                  }`}
+                    }`}
                 >
                   {household.status}
                 </span>
@@ -91,7 +89,7 @@ export default function HouseholdTable({ households = [], onEditHousehold, onArc
                       }}
                       className="flex items-center gap-3 w-full text-left px-4 py-2.5 text-sm hover:bg-gray-100 transition-colors border-b border-gray-100 cursor-pointer "
                     >
-                    <RiUserMinusLine className="w-4 h-4 text-gray-600" />
+                      <RiUserMinusLine className="w-4 h-4 text-gray-600" />
                       <span>Archive Resident</span>
                     </div>
                     <div

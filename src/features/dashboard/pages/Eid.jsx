@@ -117,6 +117,7 @@ export default function Eid() {
   const [sortBy, setSortBy] = useState('date-newest');
   const [currentPage, setCurrentPage] = useState(1);
   const [eids, setEids] = useState(MOCK_EIDS);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedEid, setSelectedEid] = useState(null);
   const [deactivateModalOpen, setDeactivateModalOpen] = useState(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
@@ -210,11 +211,11 @@ export default function Eid() {
         prev.map((e) =>
           e.id === selectedEid.id
             ? {
-                ...e,
-                idNumber: formData.idNumber,
-                name: formData.name,
-                address: formData.address ?? e.address,
-              }
+              ...e,
+              idNumber: formData.idNumber,
+              name: formData.name,
+              address: formData.address ?? e.address,
+            }
             : e
         )
       );
@@ -256,19 +257,21 @@ export default function Eid() {
 
   return (
     <div className="min-h-screen flex bg-[#F3F7F3]">
-      <DashboardSidebar />
+      <DashboardSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       <main className="flex-1 overflow-auto">
-        <DashboardHeader title="eID" />
+        <DashboardHeader title="eID" onMenuToggle={() => setSidebarOpen(o => !o)} />
 
         <section className="px-5 py-7">
           <EidOverview stats={stats} />
 
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
             <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6">
-              <div className="flex items-center gap-3 flex-wrap">
-                <OrderFilter value={sortBy} onChange={setSortBy} />
-                <SortFilter value={sortBy} onChange={setSortBy} />
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto">
+                <div className="flex items-center gap-2">
+                  <OrderFilter value={sortBy} onChange={setSortBy} />
+                  <SortFilter value={sortBy} onChange={setSortBy} />
+                </div>
                 <SearchBox
                   value={search}
                   onChange={(value) => {
@@ -279,11 +282,11 @@ export default function Eid() {
                 />
               </div>
 
-              <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full lg:w-auto">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto">
                 <button
                   type="button"
                   onClick={handleCreateEid}
-                  className="inline-flex justify-center whitespace-nowrap px-4 py-2.5 rounded-lg text-sm font-medium bg-[#005F02] text-white hover:bg-[#004A01]"
+                  className="inline-flex justify-center whitespace-nowrap px-4 py-2.5 rounded-lg text-sm font-medium bg-[#005F02] text-white hover:bg-[#004A01] transition-colors"
                 >
                   Create New eID
                 </button>

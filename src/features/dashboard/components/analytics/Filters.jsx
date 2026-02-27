@@ -33,7 +33,7 @@ export default function Filters({ onFilterChange }) {
     setActiveDateRange(data.dateRange);
     setCustomStart(data.customStart);
     setCustomEnd(data.customEnd);
-    
+
     onFilterChange?.({
       dateRange: data.dateRange,
       dateRangeLabel: data.dateRangeLabel,
@@ -51,7 +51,7 @@ export default function Filters({ onFilterChange }) {
     setDateRangeLabel('Last 30 days');
     setCustomStart('');
     setCustomEnd('');
-    
+
     onFilterChange?.({
       dateRange: 'last30',
       dateRangeLabel: 'Last 30 days',
@@ -99,7 +99,7 @@ export default function Filters({ onFilterChange }) {
     setFilterYear(currentYear);
     setFilterAll('All');
     setFilterCategory('Category');
-    
+
     onFilterChange?.({
       dateRange: 'last30',
       dateRangeLabel: 'Last 30 days',
@@ -112,22 +112,28 @@ export default function Filters({ onFilterChange }) {
   };
 
   return (
-    <div className="flex flex-col sm:flex-row sm:items-center justify-end gap-4 mb-6" data-date-range={activeDateRange}>
+    <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6 mb-8" data-date-range={activeDateRange}>
       {/* Date Range Filter */}
-      <DateRangeFilter
-        dateRangeLabel={dateRangeLabel}
-        customStart={customStart}
-        customEnd={customEnd}
-        onDateRangeChange={handleDateRangeChange}
-        filterYear={filterYear}
-      />
+      <div className="w-full xl:w-auto">
+        <DateRangeFilter
+          dateRangeLabel={dateRangeLabel}
+          customStart={customStart}
+          customEnd={customEnd}
+          onDateRangeChange={handleDateRangeChange}
+          filterYear={filterYear}
+        />
+      </div>
 
       {/* Filter by Section */}
-      <div className="inline-flex items-center gap-2 flex-wrap p-2 rounded-xl border-gray-200">
-        <span className="text-sm font-semibold px-1">Filter by:</span>
-        <div className="flex items-center gap-2">
+      <div className="flex flex-col md:flex-row md:items-center gap-4 w-full xl:w-auto">
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="text-sm font-semibold text-gray-700 whitespace-nowrap">Filter by:</span>
+          <div className="h-px w-full bg-gray-200 md:hidden" />
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3">
           {/* Filter All - Location Filter */}
-          <FilterAll 
+          <FilterAll
             selectedFilter={filterAll}
             onFilterChange={handleFilterAllChange}
           />
@@ -144,6 +150,13 @@ export default function Filters({ onFilterChange }) {
             onCategoryChange={handleCategoryChange}
           />
         </div>
+
+        <button
+          onClick={handleResetAll}
+          className="text-sm font-medium text-gray-500 hover:text-[#005F02] transition-colors md:ml-2 text-left"
+        >
+          Reset
+        </button>
       </div>
     </div>
   );

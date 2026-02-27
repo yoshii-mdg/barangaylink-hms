@@ -1,8 +1,8 @@
 import { NavLink } from 'react-router-dom';
 import { Logo } from '../../../shared';
-import { FiHome,} from 'react-icons/fi';
+import { FiHome, } from 'react-icons/fi';
 import { PiUsersThree, PiUsers } from "react-icons/pi";
-import { BsQrCode,} from 'react-icons/bs'
+import { BsQrCode, } from 'react-icons/bs'
 import { FaRegAddressCard } from "react-icons/fa";
 import { MdOutlineDashboard } from "react-icons/md";
 import { TbBrandGoogleAnalytics } from "react-icons/tb";
@@ -14,7 +14,7 @@ const navSections = [
     title: 'General',
     items: [
       { to: '/dashboard', label: 'Dashboard', icon: MdOutlineDashboard },
-      { to: '/analytics', label: 'Analytics', icon: TbBrandGoogleAnalytics  },
+      { to: '/analytics', label: 'Analytics', icon: TbBrandGoogleAnalytics },
     ],
   },
   {
@@ -24,21 +24,21 @@ const navSections = [
       { to: '/households', label: 'Households', icon: FiHome },
       { to: '/eid', label: 'eID', icon: FaRegAddressCard },
       { to: '/qr-verification', label: 'QR Verification', icon: BsQrCode },
-      { to: '/profile', label: 'User', icon: PiUsers }
+      { to: '/user-account', label: 'User', icon: PiUsers }
     ],
   },
 ];
 
-export default function DashboardSidebar() {
+function SidebarContent({ onClose }) {
   return (
-    <aside className="w-68 bg-white border-r border-gray-200 min-h-screen">
+    <aside className="w-68 bg-white border-r border-gray-200 min-h-screen flex flex-col">
       <div className="px-6 py-6">
-      <img src={LogoDashboard} alt="Logo" className='w-full' />
+        <img src={LogoDashboard} alt="Logo" className='w-full' />
       </div>
 
       <hr className='border-gray-400 opacity-20 mb-5'></hr>
 
-      <nav className="px-4 pb-6">
+      <nav className="px-4 pb-6 flex-1">
         {navSections.map((section) => (
           <div key={section.title} className="mb-6">
             <p className="px-3 text-[14px] font-semibold text-gray-500 uppercase tracking-wider">
@@ -52,6 +52,7 @@ export default function DashboardSidebar() {
                   <NavLink
                     key={item.to}
                     to={item.to}
+                    onClick={onClose}
                     className={({ isActive }) =>
                       [
                         'flex items-center gap-3 px-2 py-2 rounded-lg text-lg transition-colors',
@@ -74,4 +75,31 @@ export default function DashboardSidebar() {
     </aside>
   );
 }
+
+export default function DashboardSidebar({ isOpen = false, onClose = () => { } }) {
+  return (
+    <>
+      {/* Desktop sidebar — always visible on lg+ */}
+      <div className="hidden lg:block shrink-0">
+        <SidebarContent onClose={onClose} />
+      </div>
+
+      {/* Mobile backdrop */}
+      <div
+        className={`fixed inset-0 z-40 bg-black/50 transition-opacity duration-300 lg:hidden ${isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+          }`}
+        onClick={onClose}
+      />
+
+      {/* Mobile slide-in sidebar */}
+      <div
+        className={`fixed top-0 left-0 h-full z-50 transition-transform duration-300 ease-in-out lg:hidden ${isOpen ? 'translate-x-0' : '-translate-x-full'
+          }`}
+      >
+        <SidebarContent onClose={onClose} />
+      </div>
+    </>
+  );
+}
+
 

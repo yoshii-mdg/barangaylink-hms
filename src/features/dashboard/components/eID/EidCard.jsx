@@ -3,7 +3,7 @@ import { BsQrCode } from 'react-icons/bs';
 import { HiOutlineDotsHorizontal } from 'react-icons/hi';
 import { FiEdit2, FiTrash2 } from 'react-icons/fi';
 import { TbUserOff } from 'react-icons/tb';
-import { EIdProfile } from '../eID'
+import { EIdProfile } from '.'
 
 export default function EidCard({ eid, onEdit, onDeactivate, onDelete }) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -13,7 +13,7 @@ export default function EidCard({ eid, onEdit, onDeactivate, onDelete }) {
   const { idNumber, name, address } = eid;
 
   return (
-    <article className="relative bg-white rounded-sm border border-gray-200 border-b-6 border-b-[#0F8A1C] shadow-sm px-4 py-4 flex items-center justify-center w-[480px] h-[250px]">
+    <article className="relative bg-white rounded-sm border border-gray-200 border-b-6 border-b-[#0F8A1C] shadow-sm px-4 py-4 flex items-center justify-center w-full min-h-[160px] sm:min-h-[200px] lg:min-h-[250px]">
       <button
         type="button"
         className="absolute top-3 right-3 text-gray-400 hover:text-gray-600"
@@ -61,19 +61,22 @@ export default function EidCard({ eid, onEdit, onDeactivate, onDelete }) {
         </div>
       )}
 
-      <div className="flex items-center gap-3 pl-10 w-full">
-        <EIdProfile name={name} size={90} />
+      <div className="flex items-center gap-3 pl-3 sm:pl-8 lg:pl-10 w-full pr-10">
+        <div className="shrink-0">
+          <EIdProfile name={name} size={64} />
+        </div>
 
-        <div className="flex-1 space-y-1">
-          <p className="text-base text-gray-800">
-            <span className="font-semibold">ID Number:</span>{' '}
+
+        <div className="flex-1 space-y-1 min-w-0">
+          <p className="text-sm sm:text-base text-gray-800 truncate">
+            <span className="font-semibold">ID:</span>{' '}
             <span>{idNumber}</span>
           </p>
-          <p className="text-base text-gray-800">
+          <p className="text-sm sm:text-base text-gray-800 truncate">
             <span className="font-semibold">Name:</span>{' '}
             <span>{name}</span>
           </p>
-          <p className="text-base text-gray-800">
+          <p className="text-sm sm:text-base text-gray-800 truncate">
             <span className="font-semibold">Address:</span>{' '}
             <span>{address}</span>
           </p>
@@ -81,9 +84,10 @@ export default function EidCard({ eid, onEdit, onDeactivate, onDelete }) {
       </div>
 
       <div className="absolute bottom-3 right-3">
-        <BsQrCode className="w-10 h-10 text-black" />
+        <BsQrCode className="w-7 h-7 sm:w-10 sm:h-10 text-black" />
       </div>
     </article>
   );
 }
+
 

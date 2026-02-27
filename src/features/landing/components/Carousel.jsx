@@ -23,7 +23,7 @@ export default function Carousel({ images = [] }) {
         if (!autoPlay || carouselImages.length === 0) return;
 
         const interval = setInterval(() => {
-            setCurrentIndex((prevIndex) => 
+            setCurrentIndex((prevIndex) =>
                 (prevIndex + 1) % carouselImages.length
             );
         }, 5000); // Change image every 5 seconds
@@ -53,21 +53,21 @@ export default function Carousel({ images = [] }) {
     if (carouselImages.length === 0) return null;
 
     return (
-        <div className="relative overflow-hidden -mb-32 md:-mb-40 -mx-8 md:-mx-12 top-25">
+        <div className="relative overflow-hidden -mb-16 sm:-mb-24 md:-mb-32 lg:-mb-30 -mx-4 sm:-mx-8 md:-mx-12 top-10 sm:top-16 lg:top-25">
             {/* Carousel Container */}
-            <div className="relative h-150 w-[90%] mx-auto">
+            <div className="relative h-56 sm:h-72 md:h-96 lg:h-150 w-[95%] sm:w-[90%] mx-auto">
                 {/* Images */}
                 {carouselImages.map((image, index) => (
                     <div
                         key={image.id}
-                        className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${
-                            index === currentIndex ? 'opacity-100' : 'opacity-0'
-                        }`}
+                        className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${index === currentIndex ? 'opacity-100' : 'opacity-0'
+                            }`}
                     >
                         <img
                             src={image.src}
                             alt={image.alt}
                             className="w-full h-full object-cover"
+                            loading="lazy"
                         />
                         {/* Black Opacity Overlay */}
                         <div className="absolute inset-0 bg-black/40"></div>
@@ -102,11 +102,10 @@ export default function Carousel({ images = [] }) {
                         <button
                             key={index}
                             onClick={() => goToSlide(index)}
-                            className={`w-2 h-2 md:w-3 md:h-3 rounded-full transition-all duration-300 ${
-                                index === currentIndex
-                                    ? 'bg-white w-8 md:w-10'
-                                    : 'bg-white/50 hover:bg-white/75'
-                            }`}
+                            className={`w-2 h-2 md:w-3 md:h-3 rounded-full transition-all duration-300 ${index === currentIndex
+                                ? 'bg-white w-8 md:w-10'
+                                : 'bg-white/50 hover:bg-white/75'
+                                }`}
                             aria-label={`Go to slide ${index + 1}`}
                         />
                     ))}

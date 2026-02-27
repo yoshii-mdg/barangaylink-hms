@@ -28,13 +28,13 @@ export default function UploadQRCode({ onUpload }) {
   };
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 w-[800px] h-[760px] flex flex-col">
+    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 w-full flex flex-col">
       {/* Profile Section */}
       <div className="bg-[#F1F7F2] rounded-t-lg border border-gray-200 flex flex-col items-center py-6 -my-6 mb-6 -mx-6 px-6">
         <div className="rounded-full overflow-hidden">
-          <EIdProfile size={140} />
+          <EIdProfile size={100} />
         </div>
-        <p className="text-3xl  font-bold mt-3">-</p>
+        <p className="text-2xl sm:text-3xl font-bold mt-3">-</p>
       </div>
 
       {/* Last Verified */}
@@ -45,7 +45,7 @@ export default function UploadQRCode({ onUpload }) {
       {/* Resident Details */}
       <div className="flex-1 mb-6">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Resident Details</h3>
-        
+
         {/* Full Name */}
         <div className="mb-6">
           <label className="text-sm font-medium text-[#005F02]">Full Name</label>
@@ -84,7 +84,7 @@ export default function UploadQRCode({ onUpload }) {
           className="w-full bg-[#F1F7F2] hover:bg-[#005F02]/20 transition-colors rounded-lg py-3 flex items-center justify-center"
         >
           <span className="text-base font-medium text-[#005F02]">Upload QR Code</span>
-        </button> 
+        </button>
 
         <input
           ref={fileInputRef}
@@ -92,7 +92,7 @@ export default function UploadQRCode({ onUpload }) {
           accept="image/png,image/jpeg"
           onChange={handleFileSelect}
           className="hidden"
-        /> 
+        />
       </div>
     </div>
   );

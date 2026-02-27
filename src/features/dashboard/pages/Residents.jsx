@@ -5,7 +5,7 @@ import {
   ResidentTable,
   ResidentAddEdit,
 } from '../components/residents';
-import { SortFilter, OrderFilter, Pagination, SearchBox, ArchiveModal, DeleteModal }  from '../../../shared';
+import { SortFilter, OrderFilter, Pagination, SearchBox, ArchiveModal, DeleteModal } from '../../../shared';
 
 const MOCK_RESIDENTS = [
   {
@@ -64,6 +64,7 @@ export default function Residents() {
   const [residentToArchive, setResidentToArchive] = useState(null);
   const [residentToDelete, setResidentToDelete] = useState(null);
   const [residents, setResidents] = useState(MOCK_RESIDENTS);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const filteredAndSorted = useMemo(() => {
     let list = residents.filter(
@@ -148,15 +149,15 @@ export default function Residents() {
       prev.map((r) =>
         r.id === selectedResident.id
           ? {
-              ...r,
-              residentNo: data.idNumber || r.residentNo,
-              name: name || r.name,
-              address: address || r.address,
-              gender: data.gender || r.gender,
-              birthdate: data.birthdate || r.birthdate,
-              contactNo: data.contactNumber || r.contactNo,
-              status: data.status || r.status,
-            }
+            ...r,
+            residentNo: data.idNumber || r.residentNo,
+            name: name || r.name,
+            address: address || r.address,
+            gender: data.gender || r.gender,
+            birthdate: data.birthdate || r.birthdate,
+            contactNo: data.contactNumber || r.contactNo,
+            status: data.status || r.status,
+          }
           : r
       )
     );
@@ -165,28 +166,28 @@ export default function Residents() {
 
   return (
     <div className="min-h-screen flex bg-[#F3F7F3]">
-      <DashboardSidebar />
+      <DashboardSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       <main className="flex-1 overflow-auto relative">
-        <DashboardHeader title="Resident" />
+        <DashboardHeader title="Resident" onMenuToggle={() => setSidebarOpen(o => !o)} />
 
         <section className="px-5 py-7">
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
             <h1 className='mb-10 font-semibold text-[25px]'>Resident List</h1>
             {/* Search, Sort, Actions */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-              <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto">
                 <SearchBox value={search} onChange={setSearch} placeholder="Search" />
-                <div className="inline-flex items-center gap-2">
+                <div className="flex items-center gap-2">
                   <SortFilter value={sortBy} onChange={setSortBy} />
                   <OrderFilter value={sortBy} onChange={setSortBy} />
                 </div>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto">
                 <button
                   type="button"
                   onClick={() => setAddModalOpen(true)}
-                  className="px-4 py-2.5 rounded-lg text-sm font-medium bg-[#005F02] text-white hover:bg-[#004A01]"
+                  className="px-4 py-2.5 rounded-lg text-sm font-medium bg-[#005F02] text-white hover:bg-[#004A01] transition-colors whitespace-nowrap"
                 >
                   Add New Resident
                 </button>
@@ -194,7 +195,7 @@ export default function Residents() {
             </div>
 
             {/* Table */}
-            <ResidentTable 
+            <ResidentTable
               residents={paginatedResidents}
               onEditResident={handleEditResident}
               onArchiveResident={handleArchiveResident}

@@ -23,13 +23,14 @@ export default function Analytics() {
     year: String(new Date().getFullYear()),
     category: 'Category',
   });
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
     <div className="min-h-screen flex bg-[#F3F7F3]">
-      <DashboardSidebar />
+      <DashboardSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       <main className="flex-1 overflow-auto">
-        <DashboardHeader title="Analytics" />
+        <DashboardHeader title="Analytics" onMenuToggle={() => setSidebarOpen(o => !o)} />
 
         <section className="px-5 py-7">
           <Filters onFilterChange={setFilters} />

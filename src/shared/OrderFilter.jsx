@@ -54,10 +54,10 @@ export default function OrderFilter({ value, onChange }) {
       <button
         type="button"
         onClick={() => setIsOpen((o) => !o)}
-        className="inline-flex items-center text-black/70 gap-1 px-4 py-2.5 rounded-lg text-sm font-medium border border-gray-300 bg-white hover:bg-gray-50 justify-between"
+        className="inline-flex items-center text-gray-900 gap-2 px-4 py-2.5 rounded-lg text-base font-medium border border-gray-300 bg-white hover:bg-gray-50 justify-between shadow-sm transition-all"
       >
         <span>Order By</span>
-        <IoIosArrowDown className={`w-4 h-4 shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        <IoIosArrowDown className={`w-4 h-4 shrink-0 transition-transform text-gray-500 ${isOpen ? 'rotate-180' : ''}`} />
       </button>
       {isOpen && (
         <div className="absolute top-full left-0 mt-1 py-1 w-full min-w-40 bg-white rounded-lg border border-gray-200 shadow-lg z-10">

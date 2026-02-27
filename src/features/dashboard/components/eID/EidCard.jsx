@@ -61,9 +61,9 @@ export default function EidCard({ eid, onEdit, onDeactivate, onDelete }) {
         </div>
       )}
 
-      <div className="flex items-center gap-3 pl-3 sm:pl-8 lg:pl-10 w-full pr-10">
+      <div className="flex items-center gap-3 pl-3  sm:pl-8 lg:pl-10 w-full pr-10">
         <div className="shrink-0">
-          <EIdProfile name={name} size={64} />
+          <EIdProfile name={name} className='!w-[60px] !h-[60px] sm:!w-[90px] sm:!h-[90px]' />
         </div>
 
 

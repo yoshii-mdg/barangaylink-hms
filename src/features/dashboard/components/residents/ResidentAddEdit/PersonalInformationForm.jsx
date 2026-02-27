@@ -1,4 +1,5 @@
 import { FiUser } from 'react-icons/fi';
+import { FormSelect } from '../../../../../shared';
 
 const inputClass =
   'w-full px-4 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-900 text-base placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#005F02]/30 focus:border-[#005F02]';
@@ -68,15 +69,15 @@ export default function PersonalInformationForm({ value = {}, onChange }) {
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1.5">Gender</label>
-          <select
-            value={value.gender ?? ''}
-            onChange={(e) => update('gender', e.target.value)}
-            className={inputClass}
-          >
-            <option value="">Gender</option>
-            <option value="Male">Male</option>
-            <option value="Female">Female</option>
-          </select>
+          <FormSelect
+            placeholder="Gender"
+            value={value.gender}
+            onChange={(val) => update('gender', val)}
+            options={[
+              { value: 'Male', label: 'Male' },
+              { value: 'Female', label: 'Female' },
+            ]}
+          />
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1.5">Contact Number</label>

@@ -31,7 +31,7 @@ const navSections = [
 
 function SidebarContent({ onClose }) {
   return (
-    <aside className="w-68 bg-white border-r border-gray-200 min-h-screen flex flex-col">
+    <aside className="w-68 bg-white border-r border-gray-200 h-full flex flex-col">
       <div className="px-6 py-6">
         <img src={LogoDashboard} alt="Logo" className='w-full' />
       </div>

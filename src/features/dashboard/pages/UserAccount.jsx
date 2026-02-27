@@ -20,8 +20,8 @@ const MOCK_USERS = [
     id: 2,
     name: 'Ariana Roxanne Malegro',
     email: 'malegro.ariona@gmail.com',
-    role: 'Resident',
-    access: 'Read-Only',
+    role: 'Super Admin',
+    access: 'Full Access',
     status: 'Enabled',
   },
   {
@@ -31,63 +31,7 @@ const MOCK_USERS = [
     role: 'Resident',
     access: 'Read-Only',
     status: 'Enabled',
-  },
-  {
-    id: 4,
-    name: 'JM Melica Nuevo',
-    email: 'nuevo.jymtelica@gmail.com',
-    role: 'Resident',
-    access: 'Read-Only',
-    status: 'Enabled',
-  },
-  {
-    id: 5,
-    name: 'Murphy De Guzman',
-    email: 'deguzmam.murphy@gmail.com',
-    role: 'Super Admin',
-    access: 'Full Access',
-    status: 'Enabled',
-  },
-  {
-    id: 6,
-    name: 'Carlo Jesus Cacho',
-    email: 'cacho.carlo.jesus@gmail.com',
-    role: 'Resident',
-    access: 'Read-Only',
-    status: 'Disabled',
-  },
-  {
-    id: 7,
-    name: 'Grant Haell Abad',
-    email: 'abad.grant.haell@gmail.com',
-    role: 'Super Admin',
-    access: 'Full Access',
-    status: 'Disabled',
-  },
-  {
-    id: 8,
-    name: 'Jhon Carlo T. Millan',
-    email: 'million.jhon.carlo@gmail.com',
-    role: 'Staff',
-    access: 'Limited Access',
-    status: 'Enabled',
-  },
-  {
-    id: 9,
-    name: 'User Name 9',
-    email: 'user9@gmail.com',
-    role: 'Resident',
-    access: 'Read-Only',
-    status: 'Enabled',
-  },
-  {
-    id: 10,
-    name: 'User Name 10',
-    email: 'user10@gmail.com',
-    role: 'Staff',
-    access: 'Limited Access',
-    status: 'Enabled',
-  },
+  }
 ];
 
 const PAGE_SIZE = 8;
@@ -224,7 +168,7 @@ export default function UserManagement() {
       <DeleteModal
         isOpen={deleteModalOpen}
         title="User"
-        message="This record will be deleted and removed from the system."
+        message="This action is permanent and cannot be undone."
         onConfirm={handleConfirmDelete}
         onCancel={() => {
           setDeleteModalOpen(false);

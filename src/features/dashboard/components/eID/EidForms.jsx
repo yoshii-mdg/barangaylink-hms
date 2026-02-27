@@ -1,6 +1,6 @@
 import { FiCalendar, FiUser, FiMapPin, FiPhone, FiMail, FiCamera } from 'react-icons/fi';
 import { useRef } from 'react';
-import EIdProfile from './EIdProfile';
+import { EIdProfile, FormSelect } from '../../../../shared';
 
 const inputWrapperClass =
   'flex items-center border border-gray-300 rounded-lg overflow-hidden bg-white';
@@ -12,7 +12,7 @@ const inputClass =
 const FormField = ({ label, children }) => (
   <div>
     {label && (
-      <label className="block text-sm font-medium text-gray-700 mb-2">
+      <label className="block text-sm font-medium text-gray-700 mb-1.5">
         {label}
       </label>
     )}
@@ -57,7 +57,7 @@ export default function EidForms({ value = {}, onChange, fullName = '' }) {
           <div className="relative">
             <EIdProfile
               name={fullName}
-              size={150}
+              size={190}
               photoUrl={value.photo}
               className="rounded-lg"
             />
@@ -172,20 +172,16 @@ export default function EidForms({ value = {}, onChange, fullName = '' }) {
           </FormField>
 
           <FormField label="Gender:">
-            <div className={inputWrapperClass}>
-              <div className={iconWrapperClass}>
-                <FiUser className="w-5 h-5" />
-              </div>
-              <select
-                value={value.gender ?? ''}
-                onChange={(e) => update('gender', e.target.value)}
-                className={inputClass}
-              >
-                <option value="">Select gender</option>
-                <option value="Male">Male</option>
-                <option value="Female">Female</option>
-              </select>
-            </div>
+            <FormSelect
+              icon={FiUser}
+              placeholder="Select gender"
+              value={value.gender}
+              onChange={(val) => update('gender', val)}
+              options={[
+                { value: 'Male', label: 'Male' },
+                { value: 'Female', label: 'Female' },
+              ]}
+            />
           </FormField>
         </div>
 

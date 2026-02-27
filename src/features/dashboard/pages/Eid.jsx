@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import DashboardHeader from '../components/DashboardHeader';
 import DashboardSidebar from '../components/DashboardSidebar';
-import { EidOverview, EidCard, EidAddEditModal } from '../components/eID';
+import { EidOverview, EidCard, EidAddEditModal } from '../components/EId';
 import {
   SearchBox,
   SortFilter,
@@ -293,7 +293,7 @@ export default function Eid() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
               {paginatedEids.map((eid) => (
                 <EidCard
                   key={eid.id}

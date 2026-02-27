@@ -1,55 +1,24 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { IoIosArrowDown } from 'react-icons/io';
 import { MdCheck } from 'react-icons/md';
+import { useClickOutside } from '../hooks/useClickOutside';
+import { getOrderFromValue, buildSortValue } from '../utils/sortUtils';
 
 const SORT_OPTIONS = [
   { value: 'date-newest', label: 'Date (Newest)', category: 'date' },
   { value: 'date-oldest', label: 'Date (Oldest)', category: 'date' },
-  { value: 'status', label: 'Status', category: 'status' },
+  { value: 'status',      label: 'Status',         category: 'status' },
 ];
-
-const DISPLAY_OPTIONS = SORT_OPTIONS.filter((opt) => opt.value !== 'name-asc');
-
-const getCategoryFromValue = (value) => {
-  if (value.includes('name')) return 'name';
-  if (value.includes('date')) return 'date';
-  if (value.includes('status')) return 'status';
-  return 'name';
-};
-
-const getOrderFromValue = (value) => {
-  if (value.includes('desc') || value === 'date-oldest') return 'desc';
-  return 'asc';
-};
-
-const buildSortValue = (category, order) => {
-  if (category === 'name') {
-    return order === 'asc' ? 'name-asc' : 'name-desc';
-  }
-  if (category === 'date') {
-    return order === 'asc' ? 'date-newest' : 'date-oldest';
-  }
-  return 'status';
-};
 
 export default function SortFilter({ value, onChange }) {
   const [isOpen, setIsOpen] = useState(false);
   const ref = useRef(null);
 
-  useEffect(() => {
-    function handleClickOutside(e) {
-      if (ref.current && !ref.current.contains(e.target)) setIsOpen(false);
-    }
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  useClickOutside(ref, useCallback(() => setIsOpen(false), []));
 
   const handleSortChange = (optValue) => {
-    const selectedOpt = SORT_OPTIONS.find((o) => o.value === optValue);
-    if (selectedOpt) {
-      const selectedOrder = getOrderFromValue(optValue);
-      onChange?.(buildSortValue(selectedOpt.category, selectedOrder));
-    }
+    const opt = SORT_OPTIONS.find((o) => o.value === optValue);
+    if (opt) onChange?.(buildSortValue(opt.category, getOrderFromValue(optValue)));
     setIsOpen(false);
   };
 
@@ -65,7 +34,7 @@ export default function SortFilter({ value, onChange }) {
       </button>
       {isOpen && (
         <div className="absolute top-full left-0 mt-1 py-1 w-full min-w-40 bg-white rounded-lg border border-gray-200 shadow-lg z-10">
-          {DISPLAY_OPTIONS.map((opt) => (
+          {SORT_OPTIONS.map((opt) => (
             <button
               key={opt.value}
               type="button"

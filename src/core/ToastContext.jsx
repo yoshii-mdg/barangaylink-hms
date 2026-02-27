@@ -1,6 +1,6 @@
-import { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { LuBadgeCheck, LuX, LuInfo, LuTriangleAlert, LuX as LuClose } from 'react-icons/lu';
+import { LuBadgeCheck, LuX, LuInfo, LuTriangleAlert } from 'react-icons/lu';
 
 const ToastContext = createContext(null);
 
@@ -31,7 +31,6 @@ function Toast({ id, type = 'info', title, message, onRemove }) {
   const Icon = ICONS[type];
 
   useEffect(() => {
-    // Trigger enter animation
     const t = setTimeout(() => setVisible(true), 10);
     return () => clearTimeout(t);
   }, []);
@@ -51,7 +50,7 @@ function Toast({ id, type = 'info', title, message, onRemove }) {
       className={`
         flex items-start gap-3 w-80 rounded-xl shadow-xl px-4 py-3
         ${STYLES[type]}
-        transition-all duration-350 ease-out
+        transition-all duration-300 ease-out
         ${visible && !leaving ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-8'}
       `}
     >
@@ -65,7 +64,7 @@ function Toast({ id, type = 'info', title, message, onRemove }) {
         className="text-gray-400 hover:text-gray-600 transition-colors mt-0.5 flex-shrink-0"
         aria-label="Dismiss"
       >
-        <LuClose className="w-4 h-4" />
+        <LuX className="w-4 h-4" />
       </button>
     </div>
   );
@@ -83,12 +82,13 @@ export function ToastProvider({ children }) {
     setToasts(prev => prev.filter(t => t.id !== id));
   }, []);
 
-  const toast = {
+  // Memoized so consumers don't re-render when ToastProvider re-renders
+  const toast = useMemo(() => ({
     success: (title, message) => addToast({ type: 'success', title, message }),
     error: (title, message) => addToast({ type: 'error', title, message }),
     info: (title, message) => addToast({ type: 'info', title, message }),
     warning: (title, message) => addToast({ type: 'warning', title, message }),
-  };
+  }), [addToast]);
 
   return (
     <ToastContext.Provider value={toast}>

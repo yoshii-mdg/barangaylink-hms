@@ -1,10 +1,11 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { IoIosArrowDown } from 'react-icons/io';
 import { MdCheck } from 'react-icons/md';
+import { useClickOutside } from '../hooks/useClickOutside';
 
 const STATUS_OPTIONS = [
-  { value: 'all', label: 'All Status' },
-  { value: 'active', label: 'Active' },
+  { value: 'all',      label: 'All Status' },
+  { value: 'active',   label: 'Active' },
   { value: 'inactive', label: 'Inactive' },
 ];
 
@@ -12,21 +13,13 @@ export default function StatusFilter({ value, onChange }) {
   const [isOpen, setIsOpen] = useState(false);
   const ref = useRef(null);
 
-  useEffect(() => {
-    function handleClickOutside(e) {
-      if (ref.current && !ref.current.contains(e.target)) setIsOpen(false);
-    }
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  const selectedOption = STATUS_OPTIONS.find((opt) => opt.value === value) || STATUS_OPTIONS[0];
+  useClickOutside(ref, useCallback(() => setIsOpen(false), []));
 
   return (
     <div ref={ref} className="relative inline-block">
       <button
         type="button"
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => setIsOpen((o) => !o)}
         className="flex items-center gap-2 px-4 py-2.5 border border-gray-300 rounded-lg bg-white text-gray-700 hover:bg-gray-50 transition-colors"
       >
         <span className="text-sm font-medium">Status</span>
@@ -39,10 +32,7 @@ export default function StatusFilter({ value, onChange }) {
             <button
               key={option.value}
               type="button"
-              onClick={() => {
-                onChange?.(option.value);
-                setIsOpen(false);
-              }}
+              onClick={() => { onChange?.(option.value); setIsOpen(false); }}
               className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-100 transition-colors flex items-center justify-between"
             >
               <span>{option.label}</span>

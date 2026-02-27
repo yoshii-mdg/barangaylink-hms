@@ -1,21 +1,6 @@
-// ─────────────────────────────────────────────────────────────────────────────
-// PATCH: Only the login() function and inviteStaff() need changes.
-// Replace those two functions in your existing AuthContext.jsx.
-//
-// Changes:
-//   login()       — Removed the "invited user" branch that re-activated accounts.
-//                   AcceptInvitation now sets is_active=true BEFORE the user logs
-//                   in for the first time, so login() only needs to block accounts
-//                   that are genuinely deactivated (is_active === false AND no
-//                   invite metadata). The old code was also setting is_active based
-//                   on user_metadata.role which gets cleared after updatePassword().
-//
-//   inviteStaff() — No change needed; still creates user + sets is_active=false.
-//                   AcceptInvitation.jsx now sets is_active=true on form submit.
-// ─────────────────────────────────────────────────────────────────────────────
-
-import { createContext, useContext, useEffect, useState } from 'react';
-import { supabase, supabaseAdmin } from './supabase';
+import { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import { supabase } from './supabase';
+import { adminApi } from './adminApi';
 
 const AuthContext = createContext(null);
 
@@ -43,8 +28,7 @@ export function AuthProvider({ children }) {
   const [userProfile, setUserProfile] = useState(null);
   const [roleLoading, setRoleLoading] = useState(true);
 
-  // ── Fetch role + full profile from users_tbl ─────────────────────────────
-  const fetchUserRole = async (userId) => {
+  const fetchUserRole = useCallback(async (userId) => {
     if (!userId) {
       setUserRole(null);
       setUserProfile(null);
@@ -53,50 +37,22 @@ export function AuthProvider({ children }) {
     }
     setRoleLoading(true);
     try {
-      let { data, error } = await supabase
+      const { data, error } = await supabase
         .from('users_tbl')
         .select('role, first_name, middle_name, last_name, is_active')
         .eq('user_id', userId)
         .single();
 
-      // If no profile exists, create one
-      if (error && error.code === 'PGRST116') {
-        const { data: { user } } = await supabase.auth.getUser();
-        const inviteData = user?.user_metadata;
-        const role = inviteData?.role || ROLES.RESIDENT;
-
-        const { error: insertError } = await supabaseAdmin
-          .from('users_tbl')
-          .insert({
-            user_id: userId,
-            role,
-            first_name: inviteData?.first_name || '',
-            middle_name: inviteData?.middle_name || '',
-            last_name: inviteData?.last_name || '',
-            is_active: true,
-          });
-
-        if (insertError) {
-          console.error('Failed to create user profile:', insertError);
-          setUserRole(null);
-          setUserProfile(null);
-        } else {
-          const { data: newData } = await supabase
-            .from('users_tbl')
-            .select('role, first_name, middle_name, last_name, is_active')
-            .eq('user_id', userId)
-            .single();
-          data = newData;
-        }
-      } else if (error) {
+      if (error && error.code !== 'PGRST116') {
         console.error('Error fetching user role:', error);
         setUserRole(null);
         setUserProfile(null);
+        return;
       }
 
       if (data) {
         if (!data.is_active) {
-          // Deactivated account — sign them out completely
+          // Sign out deactivated users immediately
           await supabase.auth.signOut();
           setUserRole(null);
           setUserProfile(null);
@@ -104,13 +60,18 @@ export function AuthProvider({ children }) {
         }
         setUserRole(data.role ?? null);
         setUserProfile(data);
+      } else {
+        // No profile row yet (e.g. newly confirmed resident — profile created by DB trigger)
+        setUserRole(null);
+        setUserProfile(null);
       }
     } finally {
       setRoleLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
+    // Fetch the current session on mount
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       fetchUserRole(session?.user?.id ?? null);
@@ -118,19 +79,19 @@ export function AuthProvider({ children }) {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session);
-      if (event !== 'SIGNED_IN') {
-        fetchUserRole(session?.user?.id ?? null);
-      }
+      // Always re-fetch user role on any auth state change (including SIGNED_IN)
+      // so that the role is always up to date after login or email confirmation.
+      fetchUserRole(session?.user?.id ?? null);
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [fetchUserRole]);
 
-  const getDashboardPath = (role) => {
+  const getDashboardPath = useCallback((role) => {
     return ROLE_DASHBOARDS[role ?? userRole] ?? '/login';
-  };
+  }, [userRole]);
 
-  // ── Auth methods ──────────────────────────────────────────────────────────
+  // ── Auth methods ─────────────────────────────────────────────────────────
 
   const login = async ({ email, password }) => {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
@@ -139,45 +100,14 @@ export function AuthProvider({ children }) {
     const userId = data.session?.user?.id;
     if (!userId) return null;
 
-    let { data: profile } = await supabase
+    const { data: profile } = await supabase
       .from('users_tbl')
       .select('role, first_name, last_name, middle_name, is_active')
       .eq('user_id', userId)
       .maybeSingle();
 
-    // If no profile exists yet, create one (new resident signup path)
-    if (!profile) {
-      const { data: { user } } = await supabase.auth.getUser();
-      const inviteData = user?.user_metadata;
-      const role = inviteData?.role || ROLES.RESIDENT;
-
-      const { error: insertError } = await supabaseAdmin
-        .from('users_tbl')
-        .insert({
-          user_id: userId,
-          email,
-          role,
-          first_name: inviteData?.first_name || '',
-          middle_name: inviteData?.middle_name || '',
-          last_name: inviteData?.last_name || '',
-          is_active: true,
-        });
-
-      if (!insertError) {
-        const { data: newProfile } = await supabase
-          .from('users_tbl')
-          .select('role, first_name, last_name, middle_name, is_active')
-          .eq('user_id', userId)
-          .maybeSingle();
-        profile = newProfile;
-      }
-    }
-
-    // Block deactivated accounts.
-    // NOTE: Invited users who completed AcceptInvitation will already have
-    // is_active=true in the DB (set by AcceptInvitation before updatePassword).
-    // So we no longer need a special "invited user" branch here.
     if (profile && !profile.is_active) {
+      // Sign out deactivated accounts asynchronously
       setTimeout(() => supabase.auth.signOut(), 100);
       throw new Error('Your account has been deactivated. Please contact an administrator.');
     }
@@ -195,7 +125,7 @@ export function AuthProvider({ children }) {
       options: {
         data: {
           first_name: firstName,
-          middle_name: middleName,
+          middle_name: middleName || null,
           last_name: lastName,
         },
       },
@@ -226,64 +156,12 @@ export function AuthProvider({ children }) {
     setUserProfile(null);
   };
 
-  // ── User Management methods (Super Admin only) ───────────────────────────
+  // ── Admin methods (proxied through Express server) ───────────────────────
 
-  const changeUserRole = async (targetUserId, newRole) => {
-    if (userRole !== ROLES.SUPERADMIN) throw new Error('Unauthorized: Only Super Admins can change roles');
-    if (!Object.values(ROLES).includes(newRole)) throw new Error('Invalid role');
-    const { error } = await supabaseAdmin
-      .from('users_tbl')
-      .update({ role: newRole })
-      .eq('user_id', targetUserId);
-    if (error) throw error;
-  };
-
-  const deactivateUser = async (targetUserId) => {
-    if (userRole !== ROLES.SUPERADMIN) throw new Error('Unauthorized: Only Super Admins can deactivate users');
-    const { error } = await supabaseAdmin
-      .from('users_tbl')
-      .update({ is_active: false })
-      .eq('user_id', targetUserId);
-    if (error) throw error;
-  };
-
-  const reactivateUser = async (targetUserId) => {
-    if (userRole !== ROLES.SUPERADMIN) throw new Error('Unauthorized: Only Super Admins can reactivate users');
-    const { error } = await supabaseAdmin
-      .from('users_tbl')
-      .update({ is_active: true })
-      .eq('user_id', targetUserId);
-    if (error) throw error;
-  };
-
-  const inviteStaff = async (email) => {
-    if (userRole !== ROLES.SUPERADMIN) throw new Error('Unauthorized: Only Super Admins can invite staff');
-
-    const { data, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
-      data: {
-        role: ROLES.STAFF,
-        invited_by: session?.user?.id,
-      },
-      redirectTo: `${window.location.origin}/accept-invitation`,
-    });
-
-    if (inviteError) throw inviteError;
-
-    // Create the users_tbl row as inactive — AcceptInvitation will set is_active=true
-    if (data?.user?.id) {
-      // Insert or update the row with is_active: false
-      await supabaseAdmin
-        .from('users_tbl')
-        .upsert({
-          user_id: data.user.id,
-          role: ROLES.STAFF,
-          is_active: false,
-          first_name: '',
-          middle_name: null,
-          last_name: '',
-        }, { onConflict: 'user_id' });
-    }
-  };
+  const changeUserRole = (targetUserId, newRole) => adminApi.changeRole(targetUserId, newRole);
+  const deactivateUser = (targetUserId) => adminApi.deactivateUser(targetUserId);
+  const reactivateUser = (targetUserId) => adminApi.reactivateUser(targetUserId);
+  const inviteStaff = (email) => adminApi.inviteStaff(email);
 
   const displayName = userProfile
     ? [userProfile.first_name, userProfile.last_name].filter(Boolean).join(' ')

@@ -5,7 +5,8 @@ import { AuthLayout, Logo } from '../../../shared';
 import { SuccessStep } from '../components/';
 import { useAuth } from '../../../core/AuthContext';
 import { useToast } from '../../../core/ToastContext';
-import { supabase, supabaseAdmin } from '../../../core/supabase';
+import { supabase } from '../../../core/supabase';
+import { adminApi } from '../../../core/adminApi';
 import { FiEye, FiEyeOff } from 'react-icons/fi';
 
 const STEPS = {
@@ -83,25 +84,17 @@ export default function AcceptInvitation() {
 
             if (!userId) throw new Error('Session expired. Please use the invitation link again.');
 
-            // ── STEP 1: Update DB row FIRST (before updatePassword() can alter session/metadata) ──
-            // This uses supabaseAdmin to bypass RLS and guarantees the write succeeds.
-            const { error: dbError } = await supabaseAdmin
-                .from('users_tbl')
-                .update({
-                    first_name: firstName.trim(),
-                    middle_name: middleName.trim() || null,
-                    last_name: lastName.trim(),
-                    is_active: true,   // activate account at the same time
-                })
-                .eq('user_id', userId);
-
-            if (dbError) {
-                console.error('DB update error:', dbError);
-                throw new Error('Failed to save your profile. Please try again.');
-            }
-
-            // ── STEP 2: Set the password (Supabase may alter user_metadata here) ──
+            // ── STEP 1: Update password via Supabase ──
+            // This must happen first to establish the session for the backend call.
             await updatePassword(password);
+
+            // ── STEP 2: Activate profile with names via backend API ──
+            // The backend uses the service-role key to bypass RLS and save the profile data.
+            await adminApi.activateAndUpdateProfile(userId, {
+                firstName: firstName.trim(),
+                middleName: middleName.trim() || null,
+                lastName: lastName.trim(),
+            });
 
             // ── STEP 3: Success ──
             setStep(STEPS.SUCCESS);

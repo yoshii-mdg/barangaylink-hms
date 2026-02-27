@@ -1,51 +1,22 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { IoIosArrowDown } from 'react-icons/io';
 import { MdCheck } from 'react-icons/md';
+import { useClickOutside } from '../hooks/useClickOutside';
+import { getCategoryFromValue, getOrderFromValue, buildSortValue } from '../utils/sortUtils';
 
 const ORDER_OPTIONS = [
   { value: 'asc', label: 'Ascending' },
   { value: 'desc', label: 'Descending' },
 ];
 
-const getCategoryFromValue = (value) => {
-  if (value.includes('name')) return 'name';
-  if (value.includes('date')) return 'date';
-  if (value.includes('status')) return 'status';
-  return 'name';
-};
-
-const getOrderFromValue = (value) => {
-  if (value.includes('desc') || value === 'date-oldest') return 'desc';
-  return 'asc';
-};
-
-const buildSortValue = (category, order) => {
-  if (category === 'name') {
-    return order === 'asc' ? 'name-asc' : 'name-desc';
-  }
-  if (category === 'date') {
-    return order === 'asc' ? 'date-newest' : 'date-oldest';
-  }
-  return 'status';
-};
-
 export default function OrderFilter({ value, onChange }) {
   const [isOpen, setIsOpen] = useState(false);
   const ref = useRef(null);
 
-  useEffect(() => {
-    function handleClickOutside(e) {
-      if (ref.current && !ref.current.contains(e.target)) setIsOpen(false);
-    }
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  useClickOutside(ref, useCallback(() => setIsOpen(false), []));
 
-  const currentCategory = getCategoryFromValue(value);
-  const currentOrder = getOrderFromValue(value);
-
-  const handleOrderChange = (orderType) => {
-    onChange?.(buildSortValue(currentCategory, orderType));
+  const handleOrderChange = (order) => {
+    onChange?.(buildSortValue(getCategoryFromValue(value), order));
     setIsOpen(false);
   };
 
@@ -69,7 +40,7 @@ export default function OrderFilter({ value, onChange }) {
               className="flex items-center justify-between w-full text-left px-4 py-2 text-sm hover:bg-gray-100 rounded-md"
             >
               <span>{opt.label}</span>
-              {currentOrder === opt.value && <MdCheck className="w-4 h-4 text-green-600" />}
+              {getOrderFromValue(value) === opt.value && <MdCheck className="w-4 h-4 text-green-600" />}
             </button>
           ))}
         </div>

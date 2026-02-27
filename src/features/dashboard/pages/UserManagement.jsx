@@ -1,6 +1,7 @@
 // File: src/features/dashboard/pages/UserManagement.jsx
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../../../core/supabase';
+import { adminApi } from '../../../core/adminApi';
 import { useAuth, ROLES, ROLE_LABELS } from '../../../core/AuthContext';
 import { useToast } from '../../../core/ToastContext';
 import DashboardHeader from '../components/DashboardHeader';
@@ -146,12 +147,19 @@ export default function UserManagement() {
         setIsLoading(true);
         setError('');
         try {
-            const { data, error } = await supabase
-                .from('users_tbl')
-                .select('user_id, first_name, middle_name, last_name, role, is_active')
-                .order('last_name', { ascending: true });
-            if (error) throw error;
-            setUsers(data ?? []);
+            // Prefer the admin API which merges auth emails into profiles.
+            // Falls back to a direct profiles query (without email) if the API call fails.
+            try {
+                const data = await adminApi.listUsers();
+                setUsers(data ?? []);
+            } catch (apiErr) {
+                const { data, error } = await supabase
+                    .from('users_tbl')
+                    .select('user_id, first_name, middle_name, last_name, role, is_active')
+                    .order('last_name', { ascending: true });
+                if (error) throw error;
+                setUsers(data ?? []);
+            }
         } catch (err) {
             setError(err.message || 'Failed to load users.');
         } finally {
@@ -326,6 +334,7 @@ export default function UserManagement() {
                                 <thead className="bg-[#F1F7F2]">
                                     <tr className="border-b border-gray-100">
                                         <th className="text-left px-6 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide">Name</th>
+                                        <th className="text-left px-6 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide">Email</th>
                                         <th className="text-left px-6 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide">Role</th>
                                         <th className="text-left px-6 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide">Access</th>
                                         <th className="text-left px-6 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide">Status</th>
@@ -335,13 +344,13 @@ export default function UserManagement() {
                                 <tbody>
                                     {isLoading ? (
                                         <tr>
-                                            <td colSpan={5} className="text-center py-16 text-gray-400">
+                                            <td colSpan={6} className="text-center py-16 text-gray-400">
                                                 Loading users…
                                             </td>
                                         </tr>
                                     ) : filtered.length === 0 ? (
                                         <tr>
-                                            <td colSpan={5} className="text-center py-16 text-gray-400">
+                                            <td colSpan={6} className="text-center py-16 text-gray-400">
                                                 No users found.
                                             </td>
                                         </tr>
@@ -359,6 +368,9 @@ export default function UserManagement() {
                                                     {u.user_id === user?.id && (
                                                         <span className="ml-2 text-xs text-gray-400 font-normal">(you)</span>
                                                     )}
+                                                </td>
+                                                <td className="px-6 py-3.5 text-gray-700">
+                                                    {u.email ?? '—'}
                                                 </td>
                                                 <td className="px-6 py-3.5 text-gray-700">
                                                     {ROLE_LABELS[u.role] ?? u.role ?? '—'}

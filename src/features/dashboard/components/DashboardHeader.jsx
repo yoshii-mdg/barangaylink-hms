@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
-import { FiLogOut } from 'react-icons/fi';
+import { FiLogOut, FiMenu } from 'react-icons/fi';
 import { useAuth } from '../../../core/AuthContext';
 
-export default function DashboardHeader({ title = 'Dashboard' }) {
+export default function DashboardHeader({ title = 'Dashboard', onMenuToggle }) {
   const { logout, displayName, roleLabel } = useAuth();
   const [showConfirm, setShowConfirm] = useState(false);
   const cancelBtnRef = useRef(null);
@@ -25,11 +25,24 @@ export default function DashboardHeader({ title = 'Dashboard' }) {
   };
 
   return (
-    <header className="h-21 bg-white border-b border-gray-200 px-8 flex items-center justify-between">
-      <h1 className="text-4xl font-semibold">{title}</h1>
+    <header className="h-16 lg:h-21 bg-white border-b border-gray-200 px-4 lg:px-8 flex items-center justify-between">
+      <div className="flex items-center gap-3">
+        {/* Hamburger — mobile only */}
+        {onMenuToggle && (
+          <button
+            type="button"
+            onClick={onMenuToggle}
+            aria-label="Open menu"
+            className="lg:hidden p-1.5 rounded-md hover:bg-gray-100 transition-colors"
+          >
+            <FiMenu className="w-6 h-6 text-gray-700" />
+          </button>
+        )}
+        <h1 className="text-2xl lg:text-4xl font-semibold">{title}</h1>
+      </div>
 
       <div className="flex items-center gap-3 text-sm">
-        <div className="text-right leading-tight select-none">
+        <div className="text-right leading-tight select-none hidden sm:block">
           <div className="font-semibold">{displayName || '—'}</div>
           <div className="text-xs text-gray-500">{roleLabel}</div>
         </div>
@@ -61,6 +74,7 @@ export default function DashboardHeader({ title = 'Dashboard' }) {
 }
 
 function ConfirmModal({ title, message, confirmLabel = 'Confirm', cancelLabel = 'Cancel', onConfirm, onCancel, initialFocusRef }) {
+  // Close on Escape
   useEffect(() => {
     const onKey = (e) => { if (e.key === 'Escape') onCancel?.(); };
     window.addEventListener('keydown', onKey);

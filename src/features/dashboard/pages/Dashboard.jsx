@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { FiHome } from 'react-icons/fi';
-import { FaRegAddressCard } from "react-icons/fa";
-import { PiUsersThree } from "react-icons/pi";
-import { IoShieldCheckmarkOutline } from "react-icons/io5";
+import { FaRegAddressCard } from 'react-icons/fa';
+import { PiUsersThree } from 'react-icons/pi';
+import { IoShieldCheckmarkOutline } from 'react-icons/io5';
 import DashboardHeader from '../components/DashboardHeader';
 import DashboardSidebar from '../components/DashboardSidebar';
 import { supabase } from '../../../core/supabase';
@@ -16,6 +16,7 @@ export default function Dashboard() {
   const [recentResidents, setRecentResidents] = useState([]);
   const [recentActivity, setRecentActivity] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
     async function fetchDashboardData() {
@@ -28,33 +29,26 @@ export default function Dashboard() {
           recentResidentsResult,
           recentActivityResult,
         ] = await Promise.all([
-          // Total residents — residents_tbl uses `id` as PK
           supabase
             .from('residents_tbl')
             .select('*', { count: 'exact', head: true }),
 
-          // Total households — households_tbl uses `id` as PK, is_active for status
           supabase
             .from('households_tbl')
             .select('*', { count: 'exact', head: true })
             .eq('is_active', true),
 
-          // Active eID — adjust table/column name if your eid table differs
           supabase
             .from('eid_tbl')
             .select('*', { count: 'exact', head: true })
             .eq('status', 'Active'),
 
-          // Recent 5 residents — columns: id, first_name, middle_name, last_name,
-          // gender, house_no/street/purok/barangay come from joining households_tbl
-          // but for simplicity we show what's directly on the resident row
           supabase
             .from('residents_tbl')
             .select('id, first_name, middle_name, last_name, suffix, gender, created_at')
             .order('created_at', { ascending: false })
             .limit(5),
 
-          // Activity log — audit_logs_tbl columns: id, actor_id, action, target_table, created_at
           supabase
             .from('audit_logs_tbl')
             .select('id, action, target_table, created_at')
@@ -65,30 +59,35 @@ export default function Dashboard() {
         setStats({
           totalResidents: residentsCountResult.count ?? 0,
           totalHouseholds: householdsCountResult.count ?? 0,
-          // If eid_tbl doesn't exist yet, gracefully fall back to 0
           activeEID: activeEIDResult.error ? 0 : (activeEIDResult.count ?? 0),
         });
 
         if (recentResidentsResult.data) {
-          setRecentResidents(recentResidentsResult.data.map((r) => ({
-            name: [r.last_name, r.first_name, r.middle_name, r.suffix]
-              .filter(Boolean)
-              .join(', '),
-            gender: r.gender ?? '—',
-            dateRegistered: r.created_at
-              ? new Date(r.created_at).toLocaleDateString('en-US', {
-                year: 'numeric', month: 'long', day: 'numeric',
-              })
-              : '—',
-          })));
+          setRecentResidents(
+            recentResidentsResult.data.map((r) => ({
+              name: [r.last_name, r.first_name, r.middle_name, r.suffix]
+                .filter(Boolean)
+                .join(', '),
+              gender: r.gender ?? '—',
+              dateRegistered: r.created_at
+                ? new Date(r.created_at).toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                  })
+                : '—',
+            }))
+          );
         }
 
         if (recentActivityResult.data && recentActivityResult.data.length > 0) {
-          setRecentActivity(recentActivityResult.data.map((a) => ({
-            title: formatAction(a.action, a.target_table),
-            time: timeAgo(a.created_at),
-            type: tableToType(a.target_table),
-          })));
+          setRecentActivity(
+            recentActivityResult.data.map((a) => ({
+              title: formatAction(a.action, a.target_table),
+              time: timeAgo(a.created_at),
+              type: tableToType(a.target_table),
+            }))
+          );
         }
       } catch (err) {
         console.error('Dashboard fetch error:', err);
@@ -149,13 +148,12 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen flex bg-[#F3F7F3]">
-      <DashboardSidebar />
+      <DashboardSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       <main className="flex-1">
-        <DashboardHeader title="Dashboard" />
+        <DashboardHeader title="Dashboard" onMenuToggle={() => setSidebarOpen((o) => !o)} />
 
         <section className="px-5 py-7">
-
           {/* Stat Cards */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {statCards.map((card) => {
@@ -188,7 +186,6 @@ export default function Dashboard() {
 
           {/* Lower panels */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
-
             {/* Recent Residents */}
             <div className="lg:col-span-2 bg-white rounded-xl border border-gray-100 border-r-6 border-r-[#005F02] shadow-sm p-8">
               <div className="px-5 py-1 border-b border-gray-200 flex items-center justify-between mb-4">
@@ -246,12 +243,17 @@ export default function Dashboard() {
                   {recentActivity.map((a, idx) => {
                     const Icon = getActivityIcon(a.type);
                     return (
-                      <div key={idx} className="flex items-start gap-3 border-b border-gray-100 pb-4 last:border-0 last:pb-0">
+                      <div
+                        key={idx}
+                        className="flex items-start gap-3 border-b border-gray-100 pb-4 last:border-0 last:pb-0"
+                      >
                         <div className="w-9 h-9 rounded-lg flex items-center justify-center text-[#005F02] shrink-0">
                           <Icon className="w-6 h-6" />
                         </div>
                         <div className="min-w-0">
-                          <div className="text-sm font-semibold text-gray-800 capitalize truncate">{a.title}</div>
+                          <div className="text-sm font-semibold text-gray-800 capitalize truncate">
+                            {a.title}
+                          </div>
                           <div className="text-xs text-gray-500 mt-0.5">{a.time}</div>
                         </div>
                       </div>

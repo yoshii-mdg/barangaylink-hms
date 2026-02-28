@@ -1,4 +1,5 @@
 import { IoInformationCircleOutline } from 'react-icons/io5';
+import { FormSelect } from '../../../../../shared';
 
 const inputClass =
   'w-full px-4 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-900 text-base placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#005F02]/30 focus:border-[#005F02]';
@@ -30,14 +31,15 @@ export default function IdentificationDetailForm({ value = {}, onChange }) {
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1.5">Status</label>
-          <select
+          <FormSelect
+            placeholder="Status"
             value={value.status ?? 'Active'}
-            onChange={(e) => update('status', e.target.value)}
-            className="w-full px-4 py-2.5 rounded-lg border border-gray-300 bg-gray-50 text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#005F02]/30 focus:border-[#005F02]"
-          >
-            <option value="Active">Active</option>
-            <option value="Inactive">Inactive</option>
-          </select>
+            onChange={(val) => update('status', val)}
+            options={[
+              { value: 'Active', label: 'Active' },
+              { value: 'Inactive', label: 'Inactive' },
+            ]}
+          />
         </div>
       </div>
     </div>

@@ -11,3 +11,7 @@ export { default as Pagination } from './Pagination';
 export { default as SearchBox } from './SearchBox';
 export { default as ArchiveModal } from './ArchiveModal';
 export { default as DeleteModal } from './DeleteModal';
+export { default as DeactiveModal } from './DeactiveModal';
+export { default as ActionDropdown } from './ActionDropdown';
+export { default as FormSelect } from './FormSelect';
+export { default as EIdProfile } from '../features/dashboard/components/EId/EIdProfile';

@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { HiEllipsisVertical, HiPencilSquare } from 'react-icons/hi2';
-import { FaRegTrashAlt } from "react-icons/fa";
-import { RiUserMinusLine } from "react-icons/ri";
+import { FaRegTrashAlt } from 'react-icons/fa';
+import { RiUserMinusLine } from 'react-icons/ri';
 
 export default function ResidentTable({ residents = [], onEditResident, onArchiveResident, onDeleteResident }) {
   const [openDropdownId, setOpenDropdownId] = useState(null);
@@ -41,58 +41,60 @@ export default function ResidentTable({ residents = [], onEditResident, onArchiv
           {residents.map((resident, idx) => (
             <tr
               key={resident.id ?? idx}
-              className={`border-b border-gray-100 border-l border-r last:border-b-0 ${idx % 2 === 1 ? 'bg-gray-50' : 'bg-white'
-                } hover:bg-gray-50/80 transition-colors`}
+              className={`border-b border-gray-100 border-l border-r last:border-b-0 ${idx % 2 === 1 ? 'bg-gray-50/50' : 'bg-white'}`}
             >
-              <td className="py-3 px-4 text-gray-800">{resident.residentNo}</td>
-              <td className="py-3 px-4 text-gray-800">{resident.name}</td>
-              <td className="py-3 px-4 text-gray-800">{resident.address}</td>
-              <td className="py-3 px-4 text-gray-800">{resident.gender}</td>
-              <td className="py-3 px-4 text-gray-800">{resident.birthdate}</td>
-              <td className="py-3 px-4 text-gray-800">{resident.contactNo}</td>
+              <td className="py-3 px-4 text-sm text-gray-700">{resident.residentNo}</td>
+              <td className="py-3 px-4 text-sm font-medium text-gray-900">{resident.name}</td>
+              <td className="py-3 px-4 text-sm text-gray-700">{resident.address}</td>
+              <td className="py-3 px-4 text-sm text-gray-700">{resident.gender}</td>
+              <td className="py-3 px-4 text-sm text-gray-700">{resident.birthdate}</td>
+              <td className="py-3 px-4 text-sm text-gray-700">{resident.contactNo}</td>
               <td className="py-3 px-4">
-                <span
-                  className={`inline-block px-4 py-1 rounded-lg text-xs font-medium ${resident.status === 'Active'
-                      ? 'bg-emerald-100 px-5 text-emerald-800'
-                      : 'bg-red-100 text-red-800'
-                    }`}
-                >
+                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                  resident.status === 'Active'
+                    ? 'bg-green-100 text-green-800'
+                    : 'bg-red-100 text-red-800'
+                }`}>
                   {resident.status}
                 </span>
               </td>
-              <td className="py-3 px-4 relative" ref={dropdownRef}>
+              <td className="py-3 px-4 relative" ref={openDropdownId === (resident.id ?? idx) ? dropdownRef : null}>
                 <button
                   type="button"
-                  onClick={(e) => handleDropdownClick(e, resident.id)}
-                  className="p-2 hover:bg-gray-200 rounded-md transition-colors"
+                  onClick={(e) => handleDropdownClick(e, resident.id ?? idx)}
+                  className="p-1 rounded-md hover:bg-gray-100 transition-colors"
+                  aria-label="Actions"
+                  aria-haspopup="true"
+                  aria-expanded={openDropdownId === (resident.id ?? idx)}
                 >
-                  <HiEllipsisVertical className="w-5 h-5 text-gray-600" />
+                  <HiEllipsisVertical className="w-5 h-5 text-gray-500" />
                 </button>
-                {openDropdownId === resident.id && (
-                  <div className="absolute right-0 mt-1 w-48 bg-white rounded-lg border border-gray-200 shadow-lg z-50 pointer-events-auto">
+
+                {openDropdownId === (resident.id ?? idx) && (
+                  <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg border border-gray-200 shadow-lg z-50">
                     <div
                       role="button"
                       tabIndex="0"
                       onMouseDown={(e) => {
                         e.stopPropagation();
-                        console.log('Edit button clicked, calling onEditResident with:', resident);
                         onEditResident?.(resident);
                         setOpenDropdownId(null);
                       }}
+                      onKeyDown={(e) => e.key === 'Enter' && (onEditResident?.(resident), setOpenDropdownId(null))}
                       className="flex items-center gap-3 w-full text-left px-4 py-2.5 text-sm hover:bg-gray-100 transition-colors border-b border-gray-100 cursor-pointer"
                     >
                       <HiPencilSquare className="w-4 h-4 text-gray-600" />
-                      <span>Edit</span>
+                      <span>Edit Resident</span>
                     </div>
                     <div
                       role="button"
                       tabIndex="0"
                       onMouseDown={(e) => {
                         e.stopPropagation();
-                        console.log('Archive button clicked, calling onArchiveResident with:', resident);
                         onArchiveResident?.(resident);
                         setOpenDropdownId(null);
                       }}
+                      onKeyDown={(e) => e.key === 'Enter' && (onArchiveResident?.(resident), setOpenDropdownId(null))}
                       className="flex items-center gap-3 w-full text-left px-4 py-2.5 text-sm hover:bg-gray-100 transition-colors border-b border-gray-100 cursor-pointer"
                     >
                       <RiUserMinusLine className="w-4 h-4 text-gray-600" />
@@ -103,10 +105,10 @@ export default function ResidentTable({ residents = [], onEditResident, onArchiv
                       tabIndex="0"
                       onMouseDown={(e) => {
                         e.stopPropagation();
-                        console.log('Delete button clicked, calling onDeleteResident with:', resident);
                         onDeleteResident?.(resident);
                         setOpenDropdownId(null);
                       }}
+                      onKeyDown={(e) => e.key === 'Enter' && (onDeleteResident?.(resident), setOpenDropdownId(null))}
                       className="flex items-center gap-3 w-full text-left px-4 py-2.5 text-sm hover:bg-red-50 transition-colors text-red-600 hover:text-red-700 cursor-pointer"
                     >
                       <FaRegTrashAlt className="w-4 h-4" />

@@ -14,7 +14,7 @@ async function request(method, path, body) {
   const res = await fetch(`${API_URL}${path}`, {
     method,
     headers,
-    body: body ? JSON.stringify(body) : undefined,
+    body: body !== undefined ? JSON.stringify(body) : undefined,
   });
   const json = await res.json();
   if (!res.ok) throw new Error(json.error || `Request failed: ${res.status}`);
@@ -38,14 +38,14 @@ export const adminApi = {
   reactivateUser: (userId) => request('PATCH', `/api/admin/users/${userId}/reactivate`),
 
   /**
-   * Called by an invited staff member after setting their password.
-   * Updates their profile fields (name) and activates the account.
-   * Uses the user's own session token — no superadmin required.
+   * Activate own profile — called by AcceptInvitation.
+   * NOTE: AcceptInvitation calls the backend directly (not through this helper)
+   * so it can inject the pre-captured token. This method is kept for completeness.
    */
-  activateAndUpdateProfile: (userId, { firstName, middleName, lastName }) =>
+  activateProfile: (userId, { first_name, middle_name, last_name } = {}) =>
     request('PATCH', `/api/admin/users/${userId}/activate`, {
-      first_name: firstName,
-      middle_name: middleName || null,
-      last_name: lastName,
+      first_name,
+      middle_name: middle_name || null,
+      last_name,
     }),
 };

@@ -6,81 +6,55 @@ import {
   ResidentAddEdit,
 } from '../components/residents';
 import { SortFilter, OrderFilter, Pagination, SearchBox, ArchiveModal, DeleteModal } from '../../../shared';
-
-const MOCK_RESIDENTS = [
-  {
-    id: 1,
-    residentNo: '1234-123-12',
-    name: 'JM Melca C. Nuevo',
-    address: 'Dahlia Avenue St.',
-    gender: 'Female',
-    birthdate: '11/21/2005',
-    contactNo: '09100976326',
-    status: 'Active',
-  },
-  {
-    id: 2,
-    residentNo: '1234-123-13',
-    name: 'John Doe',
-    address: 'Dahlia Avenue St.',
-    gender: 'Male',
-    birthdate: '01/01/2003',
-    contactNo: '09123456789',
-    status: 'Active',
-  },
-  {
-    id: 3,
-    residentNo: '1234-123-14',
-    name: 'Jane Smith',
-    address: 'Dahlia Avenue St.',
-    gender: 'Female',
-    birthdate: '12/23/2004',
-    contactNo: '09987654321',
-    status: 'Inactive',
-  },
-  ...Array.from({ length: 9 }, (_, i) => ({
-    id: i + 4,
-    residentNo: `1234-123-${String(15 + i).padStart(2, '0')}`,
-    name: `Resident ${i + 4}`,
-    address: 'Dahlia Avenue St.',
-    gender: i % 2 === 0 ? 'Male' : 'Female',
-    birthdate: '05/15/2000',
-    contactNo: '09123456789',
-    status: i % 3 === 0 ? 'Inactive' : 'Active',
-  })),
-];
+import { supabase } from '../../../core/supabase';
 
 const PAGE_SIZE = 8;
 
-// Exported so ResidentAddEdit can import and reuse the same rule
-export const validateContactNumber = (value) => {
-  if (!value) return true; // optional
-  const digits = value.replace(/\D/g, '');
-  if (digits.length !== 11) return 'Contact number must be exactly 11 digits.';
-  if (!digits.startsWith('09')) return 'Contact number must start with 09.';
-  return true;
-};
-
 export default function Residents() {
+  const [residents, setResidents] = useState([]);
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState('name-asc');
   const [currentPage, setCurrentPage] = useState(1);
+
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [archiveModalOpen, setArchiveModalOpen] = useState(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+
   const [selectedResident, setSelectedResident] = useState(null);
   const [residentToArchive, setResidentToArchive] = useState(null);
   const [residentToDelete, setResidentToDelete] = useState(null);
-  const [residents, setResidents] = useState(MOCK_RESIDENTS);
+
+  const fetchResidents = useCallback(async () => {
+    const { data, error } = await supabase
+      .from('residents_tbl')
+      .select('id, resident_no, first_name, middle_name, last_name, suffix, gender, birthdate, contact_number, status')
+      .order('last_name', { ascending: true });
+
+    if (error) return;
+
+    const mapped = (data ?? []).map((r) => ({
+      id: r.id,
+      residentNo: r.resident_no ?? '—',
+      name: [r.last_name, r.first_name, r.middle_name, r.suffix].filter(Boolean).join(' '),
+      address: '—',
+      gender: r.gender ?? '—',
+      birthdate: r.birthdate ?? '—',
+      contactNo: r.contact_number ?? '—',
+      status: r.status ?? 'Active',
+    }));
+
+    setResidents(mapped);
+  }, []);
+
+  useEffect(() => {
+    fetchResidents();
+  }, [fetchResidents]);
 
   const filteredAndSorted = useMemo(() => {
-    let list = residents.filter(
-      (r) =>
-        !search ||
-        r.name?.toLowerCase().includes(search.toLowerCase()) ||
-        r.residentNo?.includes(search) ||
-        r.contactNo?.includes(search)
+    let list = residents.filter((r) =>
+      r.name.toLowerCase().includes(search.toLowerCase()) ||
+      r.residentNo.toLowerCase().includes(search.toLowerCase())
     );
     if (sortBy === 'name-asc') list = [...list].sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''));
     if (sortBy === 'name-desc') list = [...list].sort((a, b) => (b.name ?? '').localeCompare(a.name ?? ''));
@@ -126,19 +100,16 @@ export default function Residents() {
   };
 
   const handleEditResident = (resident) => {
-    console.log('handleEditResident called with:', resident);
     setSelectedResident(resident);
     setEditModalOpen(true);
   };
 
   const handleArchiveResident = (resident) => {
-    console.log('handleArchiveResident called with:', resident);
     setResidentToArchive(resident);
     setArchiveModalOpen(true);
   };
 
   const handleDeleteResident = (resident) => {
-    console.log('handleDeleteResident called with:', resident);
     setResidentToDelete(resident);
     setDeleteModalOpen(true);
   };
@@ -192,7 +163,7 @@ export default function Residents() {
 
         <section className="px-5 py-7">
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-            <h1 className='mb-10 font-semibold text-[25px]'>Resident List</h1>
+            <h1 className="mb-10 font-semibold text-[25px]">Resident List</h1>
             {/* Search, Sort, Actions */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
               <div className="flex items-center gap-3 flex-wrap">
@@ -236,15 +207,14 @@ export default function Residents() {
               pageSize={PAGE_SIZE}
               onPageChange={setCurrentPage}
             />
-          </div >
-        </section >
-      </main >
+          </div>
+        </section>
+      </main>
 
       {/* Modals rendered outside scrollable main */}
-      < ResidentAddEdit
+      <ResidentAddEdit
         isOpen={addModalOpen}
-        onClose={() => setAddModalOpen(false)
-        }
+        onClose={() => setAddModalOpen(false)}
         onSubmit={handleAddResident}
         mode="add"
       />
@@ -271,13 +241,13 @@ export default function Residents() {
       <DeleteModal
         isOpen={deleteModalOpen}
         title="Resident"
-        message="This record will be archived and deleted from the active list."
+        message="This record will be permanently deleted and cannot be undone."
         onConfirm={handleConfirmDelete}
         onCancel={() => {
           setDeleteModalOpen(false);
           setResidentToDelete(null);
         }}
       />
-    </div >
+    </div>
   );
 }

@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { HiEllipsisVertical, HiPencilSquare } from 'react-icons/hi2';
-import { FaRegTrashAlt } from "react-icons/fa";
-import { RiUserMinusLine } from "react-icons/ri";
+import { FaRegTrashAlt } from 'react-icons/fa';
+import { RiUserMinusLine } from 'react-icons/ri';
 
 export default function HouseholdTable({ households = [], onEditHousehold, onArchiveHousehold, onDeleteHousehold }) {
   const [openDropdownId, setOpenDropdownId] = useState(null);
@@ -39,8 +39,9 @@ export default function HouseholdTable({ households = [], onEditHousehold, onArc
           {households.map((household, idx) => (
             <tr
               key={household.id ?? idx}
-              className={`border-b border-gray-100 border-l border-r last:border-b-0 ${idx % 2 === 1 ? 'bg-gray-50' : 'bg-white'
-                } hover:bg-gray-50/80 transition-colors`}
+              className={`border-b border-gray-100 border-l border-r last:border-b-0 ${
+                idx % 2 === 1 ? 'bg-gray-50' : 'bg-white'
+              } hover:bg-gray-50/80 transition-colors`}
             >
               <td className="py-3 px-4 text-gray-800">{household.householdNo}</td>
               <td className="py-3 px-4 text-gray-800">{household.headMemberName}</td>
@@ -48,23 +49,27 @@ export default function HouseholdTable({ households = [], onEditHousehold, onArc
               <td className="py-3 px-4 text-gray-800">{household.members}</td>
               <td className="py-3 px-4">
                 <span
-                  className={`inline-block px-4 py-1 rounded-lg text-xs font-medium ${household.status === 'Active'
+                  className={`inline-block px-4 py-1 rounded-lg text-xs font-medium ${
+                    household.status === 'Active'
                       ? 'bg-emerald-100 px-5 text-emerald-800'
-                      : 'bg-red-100  text-red-800'
-                    }`}
+                      : 'bg-red-100 text-red-800'
+                  }`}
                 >
                   {household.status}
                 </span>
               </td>
-              <td className="py-3 px-4 relative" ref={dropdownRef}>
+              <td className="py-3 px-4 relative" ref={openDropdownId === (household.id ?? idx) ? dropdownRef : null}>
                 <button
                   type="button"
-                  onClick={(e) => handleDropdownClick(e, household.id)}
+                  onClick={(e) => handleDropdownClick(e, household.id ?? idx)}
                   className="p-2 hover:bg-gray-200 rounded-md transition-colors"
+                  aria-label="Actions"
+                  aria-haspopup="true"
+                  aria-expanded={openDropdownId === (household.id ?? idx)}
                 >
                   <HiEllipsisVertical className="w-5 h-5 text-gray-600" />
                 </button>
-                {openDropdownId === household.id && (
+                {openDropdownId === (household.id ?? idx) && (
                   <div className="absolute right-0 mt-1 w-48 bg-white rounded-lg border border-gray-200 shadow-lg z-50 pointer-events-auto">
                     <div
                       role="button"
@@ -74,6 +79,7 @@ export default function HouseholdTable({ households = [], onEditHousehold, onArc
                         onEditHousehold?.(household);
                         setOpenDropdownId(null);
                       }}
+                      onKeyDown={(e) => e.key === 'Enter' && (onEditHousehold?.(household), setOpenDropdownId(null))}
                       className="flex items-center gap-3 w-full text-left px-4 py-2.5 text-sm hover:bg-gray-100 transition-colors border-b border-gray-100 cursor-pointer"
                     >
                       <HiPencilSquare className="w-4 h-4 text-gray-600" />
@@ -84,23 +90,24 @@ export default function HouseholdTable({ households = [], onEditHousehold, onArc
                       tabIndex="0"
                       onMouseDown={(e) => {
                         e.stopPropagation();
-                        onDeleteHousehold?.(household);
+                        onArchiveHousehold?.(household);
                         setOpenDropdownId(null);
                       }}
-                      className="flex items-center gap-3 w-full text-left px-4 py-2.5 text-sm hover:bg-gray-100 transition-colors border-b border-gray-100 cursor-pointer "
+                      onKeyDown={(e) => e.key === 'Enter' && (onArchiveHousehold?.(household), setOpenDropdownId(null))}
+                      className="flex items-center gap-3 w-full text-left px-4 py-2.5 text-sm hover:bg-gray-100 transition-colors border-b border-gray-100 cursor-pointer"
                     >
                       <RiUserMinusLine className="w-4 h-4 text-gray-600" />
-                      <span>Archive Resident</span>
+                      <span>Archive Household</span>
                     </div>
                     <div
                       role="button"
                       tabIndex="0"
                       onMouseDown={(e) => {
                         e.stopPropagation();
-                        console.log('Delete button clicked, calling onDeleteHousehold with:', household);
                         onDeleteHousehold?.(household);
                         setOpenDropdownId(null);
                       }}
+                      onKeyDown={(e) => e.key === 'Enter' && (onDeleteHousehold?.(household), setOpenDropdownId(null))}
                       className="flex items-center gap-3 w-full text-left px-4 py-2.5 text-sm hover:bg-red-50 transition-colors text-red-600 hover:text-red-700 cursor-pointer"
                     >
                       <FaRegTrashAlt className="w-4 h-4" />

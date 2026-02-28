@@ -1,5 +1,4 @@
 /**
- * GuestRoute.jsx
  *
  * Fixes:
  *  - Renders a spinner instead of null while auth is loading, preventing

@@ -1,5 +1,4 @@
 /**
- * server/index.js — Production Express + Supabase backend
  *
  * Fixes & improvements applied:
  *  1. Added `express-rate-limit` to protect all API routes from abuse.

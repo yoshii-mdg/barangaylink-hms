@@ -1,31 +1,3 @@
-/**
- * AuthContext.jsx — Production-grade auth context (v2 — infinite-spinner fix)
- *
- * ROOT CAUSE of the infinite spinner on Resident login:
- *   Previous fix changed `isAuthenticated` to `!!session && !!userRole`.
- *   A Resident with no `users_tbl` row → `userRole = null` forever
- *   → `isAuthenticated = false` → ProtectedRoute redirects to /login
- *   → GuestRoute sees isAuthenticated=false → renders Login
- *   → Login's useEffect sees isAuthenticated=false → doesn't navigate
- *   → infinite spinner / redirect loop.
- *
- * THE FIX:
- *   `isAuthenticated` is restored to `!!session` — session is the ONLY
- *   source of truth for whether a user is logged in. Role-based authorization
- *   is a SEPARATE concern owned by ProtectedRoute's `allowedRoles` check.
- *
- * All v1 improvements are preserved:
- *  ✓ Dedicated `authLoading` boolean (not `session === undefined` sentinel)
- *  ✓ INITIAL_SESSION skipped in onAuthStateChange (bootstrap handles it)
- *  ✓ TOKEN_REFRESHED only updates session ref — no DB query
- *  ✓ Double-fetch race eliminated (login() doesn't set role manually)
- *  ✓ Deactivated user: direct `await signOut()` (no setTimeout)
- *  ✓ logout() clears state optimistically before signOut
- *  ✓ isOnInvitationPageRef replaces window.location.pathname check
- *  ✓ fetchUserRole is stable (useCallback with empty deps array)
- *  ✓ authLoading guaranteed false in ALL code paths (try/finally)
- */
-
 import {
   createContext,
   useContext,

@@ -1,5 +1,4 @@
 /**
- * AcceptInvitationRoute.jsx
  *
  * Fixes:
  *  1. Sets `isOnInvitationPageRef.current = true` when mounted so that

@@ -1,5 +1,4 @@
 /**
- * Login.jsx
  *
  * Fixes:
  *  1. `isLoggingIn` state is now reset to `false` in the finally block (not only

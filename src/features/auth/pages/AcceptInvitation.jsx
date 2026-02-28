@@ -1,5 +1,4 @@
 /**
- * AcceptInvitation.jsx
  *
  * Fixes:
  *  1. No longer needs to capture the access token BEFORE updatePassword().

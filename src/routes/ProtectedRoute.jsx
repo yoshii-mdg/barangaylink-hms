@@ -1,5 +1,4 @@
 /**
- * ProtectedRoute.jsx
  *
  * Fixes:
  *  - Renders a full-screen spinner instead of null while auth is loading,

@@ -1,5 +1,4 @@
 /**
- * ResetPassword.jsx
  *
  * Fixes:
  *  1. Increased the safety timeout from 5 s → 10 s. Supabase token exchange can

@@ -1,4 +1,3 @@
-// Shared Components Barrel Export
 export { default as Background } from './Background';
 export { default as AuthLayout } from './AuthLayout';
 export { default as ContentCard } from './ContentCard';
@@ -14,4 +13,4 @@ export { default as DeleteModal } from './DeleteModal';
 export { default as DeactiveModal } from './DeactiveModal';
 export { default as ActionDropdown } from './ActionDropdown';
 export { default as FormSelect } from './FormSelect';
-export { default as EIdProfile } from '../features/dashboard/components/EId/EIdProfile';
+export { default as EIdProfile } from '../features/dashboard/components/eid/EIdProfile';

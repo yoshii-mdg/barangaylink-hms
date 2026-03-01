@@ -8,13 +8,8 @@ export default function DashboardHeader({ title = 'Dashboard', onMenuToggle }) {
   const cancelBtnRef = useRef(null);
 
   useEffect(() => {
-    if (showConfirm && cancelBtnRef.current) {
-      cancelBtnRef.current.focus();
-    }
+    if (showConfirm && cancelBtnRef.current) cancelBtnRef.current.focus();
   }, [showConfirm]);
-
-  const handleOpen = () => setShowConfirm(true);
-  const handleClose = () => setShowConfirm(false);
 
   const handleConfirm = async () => {
     try {
@@ -27,7 +22,6 @@ export default function DashboardHeader({ title = 'Dashboard', onMenuToggle }) {
   return (
     <header className="h-16 lg:h-21 bg-white border-b border-gray-200 px-4 lg:px-8 flex items-center justify-between">
       <div className="flex items-center gap-3">
-        {/* Hamburger — mobile only */}
         {onMenuToggle && (
           <button
             type="button"
@@ -49,7 +43,7 @@ export default function DashboardHeader({ title = 'Dashboard', onMenuToggle }) {
 
         <button
           type="button"
-          onClick={handleOpen}
+          onClick={() => setShowConfirm(true)}
           aria-label="Log Out"
           title="Log Out"
           className="inline-flex items-center justify-center w-9 h-9 rounded-md hover:text-red-600 focus:outline-none focus:ring-1 focus:ring-red-500/50 transition-colors"
@@ -65,7 +59,7 @@ export default function DashboardHeader({ title = 'Dashboard', onMenuToggle }) {
           confirmLabel="Log out"
           cancelLabel="Cancel"
           onConfirm={handleConfirm}
-          onCancel={handleClose}
+          onCancel={() => setShowConfirm(false)}
           initialFocusRef={cancelBtnRef}
         />
       )}
@@ -73,15 +67,15 @@ export default function DashboardHeader({ title = 'Dashboard', onMenuToggle }) {
   );
 }
 
-function ConfirmModal({ title, message, confirmLabel = 'Confirm', cancelLabel = 'Cancel', onConfirm, onCancel, initialFocusRef }) {
-  // Close on Escape
+function ConfirmModal({ title, message, confirmLabel, cancelLabel, onConfirm, onCancel, initialFocusRef }) {
+  const panelRef = useRef(null);
+
   useEffect(() => {
     const onKey = (e) => { if (e.key === 'Escape') onCancel?.(); };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onCancel]);
 
-  const panelRef = useRef(null);
   const onBackdropClick = (e) => {
     if (panelRef.current && !panelRef.current.contains(e.target)) onCancel?.();
   };
@@ -95,10 +89,7 @@ function ConfirmModal({ title, message, confirmLabel = 'Confirm', cancelLabel = 
       onMouseDown={onBackdropClick}
     >
       <div className="absolute inset-0 bg-black/40" />
-      <div
-        ref={panelRef}
-        className="relative bg-white w-[90%] max-w-sm rounded-xl shadow-xl p-6"
-      >
+      <div ref={panelRef} className="relative bg-white w-[90%] max-w-sm rounded-xl shadow-xl p-6">
         <h2 id="confirm-title" className="text-lg font-semibold text-gray-900">{title}</h2>
         <p className="mt-2 text-sm text-gray-600">{message}</p>
         <div className="mt-6 flex justify-end gap-3">

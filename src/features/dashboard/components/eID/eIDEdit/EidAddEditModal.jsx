@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useMemo } from 'react';
 import { IoMdAdd } from 'react-icons/io';
 import EidForms from '../EidForms';
 
-const initialFormData = {
+const INITIAL_FORM = {
   idNumber: '',
   lastName: '',
   firstName: '',
@@ -13,26 +13,29 @@ const initialFormData = {
   address: '',
   contactNumber: '',
   emailAddress: '',
+  photo: null,
 };
 
+/**
+ * Very naively splits "First Middle Last" → parts.
+ * Real usage will pull structured fields from the DB.
+ */
 function parseNameToFormData(name) {
-  const parts = name?.split(' ') ?? [];
-  let lastName = '',
-    firstName = '',
-    middleName = '',
-    suffix = '';
+  const parts = (name ?? '').split(' ').filter(Boolean);
+  let lastName = '', firstName = '', middleName = '', suffix = '';
 
   if (parts.length >= 2) {
-    lastName = parts[parts.length - 1];
-    firstName = parts[0];
+    lastName   = parts[parts.length - 1];
+    firstName  = parts[0];
     middleName = parts.slice(1, -1).join(' ');
   } else if (parts.length === 1) {
     firstName = parts[0];
   }
 
+  // Detect suffix at end of middleName
   const suffixMatch = middleName.match(/(Jr\.|Sr\.|II|III|IV)$/);
   if (suffixMatch) {
-    suffix = suffixMatch[1];
+    suffix     = suffixMatch[1];
     middleName = middleName.replace(/\s+(Jr\.|Sr\.|II|III|IV)$/, '').trim();
   }
 
@@ -48,19 +51,19 @@ export default function EidAddEditModal({
 }) {
   const getInitialFormData = useMemo(() => {
     if (initialData && mode === 'edit') {
-      const nameParts = parseNameToFormData(initialData.name);
       return {
-        ...initialFormData,
-        idNumber: initialData.idNumber ?? '',
-        address: initialData.address ?? '',
-        ...nameParts,
-        birthdate: initialData.birthdate ?? '',
-        gender: initialData.gender ?? '',
+        ...INITIAL_FORM,
+        idNumber:      initialData.idNumber      ?? '',
+        address:       initialData.address       ?? '',
+        birthdate:     initialData.birthdate     ?? '',
+        gender:        initialData.gender        ?? '',
         contactNumber: initialData.contactNumber ?? '',
-        emailAddress: initialData.emailAddress ?? '',
+        emailAddress:  initialData.emailAddress  ?? '',
+        photo:         initialData.photo         ?? null,
+        ...parseNameToFormData(initialData.name),
       };
     }
-    return initialFormData;
+    return INITIAL_FORM;
   }, [initialData, mode]);
 
   const [formData, setFormData] = useState(getInitialFormData);
@@ -71,10 +74,9 @@ export default function EidAddEditModal({
   }, [getInitialFormData]);
 
   useEffect(() => {
-    const onKey = (e) => {
-      if (e.key === 'Escape') onClose?.();
-    };
-    if (isOpen) window.addEventListener('keydown', onKey);
+    if (!isOpen) return;
+    const onKey = (e) => { if (e.key === 'Escape') onClose?.(); };
+    window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [isOpen, onClose]);
 
@@ -84,62 +86,47 @@ export default function EidAddEditModal({
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    const name = [formData.firstName, formData.middleName, formData.lastName]
+    const fullName = [formData.firstName, formData.middleName, formData.lastName, formData.suffix]
       .filter(Boolean)
-      .join(' ')
-      .trim();
-    const suffixPart = formData.suffix ? ` ${formData.suffix}` : '';
-    const fullName = name + suffixPart;
-
-    const eid = {
-      idNumber: formData.idNumber,
-      name: fullName || formData.firstName,
-      address: formData.address,
-      birthdate: formData.birthdate,
-      gender: formData.gender,
-      contactNumber: formData.contactNumber,
-      emailAddress: formData.emailAddress,
-    };
-    onSubmit?.(eid);
-    setFormData(initialFormData);
-    onClose?.();
+      .join(' ');
+    onSubmit?.({
+      ...formData,
+      name: fullName,
+    });
   };
+
+  const fullName = [formData.firstName, formData.middleName, formData.lastName]
+    .filter(Boolean)
+    .join(' ');
 
   if (!isOpen) return null;
 
-  const fullName = formData.firstName || formData.lastName
-    ? [formData.firstName, formData.middleName, formData.lastName]
-        .filter(Boolean)
-        .join(' ')
-    : '';
-
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
       role="dialog"
       aria-modal="true"
       aria-labelledby="eid-modal-title"
       onMouseDown={onBackdropClick}
     >
-      <div className="absolute inset-0 bg-black/40" />
       <div
         ref={panelRef}
-        className="relative bg-white w-full max-w-2xl rounded-xl shadow-xl overflow-hidden max-h-[90vh] flex flex-col"
+        className="relative bg-white w-full max-w-3xl rounded-xl shadow-xl flex flex-col max-h-[95vh] mx-4"
       >
         {/* Header */}
-        <div className="flex items-center justify-between gap-3 px-6 py-3 bg-[#F1F7F2] border-b border-gray-200">
-          <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center w-10 h-10 rounded-lg text-[#005F02]">
-              <IoMdAdd className="w-6 h-6" />
-            </div>
-            <h2
-              id="eid-modal-title"
-              className="text-xl font-semibold text-gray-900"
-            >
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+          <div className="flex items-center gap-2">
+            {mode === 'create' && (
+              <div className="w-7 h-7 rounded-full bg-[#005F02] flex items-center justify-center">
+                <IoMdAdd className="w-5 h-5 text-white" />
+              </div>
+            )}
+            <h2 id="eid-modal-title" className="text-xl font-semibold text-gray-900">
               {mode === 'edit' ? 'Edit eID' : 'Create New eID'}
             </h2>
           </div>
           <button
+            type="button"
             onClick={onClose}
             className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors"
             aria-label="Close modal"
@@ -149,12 +136,10 @@ export default function EidAddEditModal({
         </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
-          {/* Form body */}
           <div className="flex-1 overflow-y-auto px-6 py-6">
             <EidForms value={formData} onChange={setFormData} fullName={fullName} />
           </div>
 
-          {/* Footer */}
           <div className="flex justify-end gap-3 px-6 py-4 bg-[#F1F7F2] border-t border-gray-200">
             <button
               type="button"

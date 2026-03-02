@@ -27,3 +27,5 @@ schema.sql
 *.njsproj
 *.sln
 *.sw?
+
+.github

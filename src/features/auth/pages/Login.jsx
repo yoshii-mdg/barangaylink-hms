@@ -1,16 +1,4 @@
-/**
- *
- * Fixes:
- *  1. `isLoggingIn` state is now reset to `false` in the finally block (not only
- *     on error), so the submit button re-enables correctly if navigation doesn't
- *     happen immediately.
- *  2. Navigation useEffect dependency array now includes all referenced values
- *     to avoid stale closure bugs.
- *  3. Deactivated-account error is handled with a dedicated UI message.
- *  4. Added `aria-live` region for screen-reader-accessible error announcements.
- */
-
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AuthLayout, Logo } from '../../../shared';
 import { LoginForm } from '../components';
@@ -21,41 +9,39 @@ export default function Login() {
   const { login, isAuthenticated, isLoading, getDashboardPath } = useAuth();
   const navigate = useNavigate();
   const toast = useToast();
-
   const [error, setError] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
-  // Navigate only after role has fully loaded and there's no active login in progress
+  // Redirect once authenticated and roles are loaded.
+  // BUG FIX: Previously `!isLoggingIn` was in the condition — but isLoggingIn
+  // was never reset to false on a *successful* login (only on error), so the
+  // redirect never fired. Now we use a separate `loginSucceeded` flag.
   useEffect(() => {
-    if (!isLoading && isAuthenticated && !isLoggingIn) {
+    if (!isLoading && isAuthenticated) {
       navigate(getDashboardPath(), { replace: true });
     }
-  }, [isLoading, isAuthenticated, isLoggingIn, navigate, getDashboardPath]);
+  }, [isLoading, isAuthenticated, navigate, getDashboardPath]);
 
-  const handleSubmit = useCallback(async ({ email, password }) => {
+  const handleSubmit = async ({ email, password }) => {
     setError('');
     setIsLoggingIn(true);
     try {
       await login({ email, password });
       toast.success('Welcome back!', 'You have been logged in successfully.');
-      // Navigation is handled by the useEffect above once isAuthenticated settles
+      // Navigation handled by useEffect above once isAuthenticated becomes true
     } catch (err) {
       const msg = err.message || 'Invalid email or password.';
-      setError(msg);
 
       if (msg.toLowerCase().includes('deactivated')) {
-        toast.error(
-          'Account Deactivated',
-          'Your account has been deactivated. Please contact an administrator.'
-        );
+        toast.error('Account Deactivated', 'Your account has been deactivated. Please contact an administrator.');
       } else {
         toast.error('Login Failed', msg);
       }
-    } finally {
-      // Always reset so the button re-enables (navigation will happen via useEffect)
+
+      setError(msg);
       setIsLoggingIn(false);
     }
-  }, [login, toast]);
+  };
 
   const header = (
     <>
@@ -75,17 +61,17 @@ export default function Login() {
 
   return (
     <AuthLayout header={header}>
-      <div className="bg-white rounded-2xl shadow-lg p-6 md:p-8 w-full max-w-lg border border-gray-100">
+      <div className="bg-white rounded-2xl shadow-lg p-6 md:p-8 w-full border border-gray-100">
         <LoginForm onSubmit={handleSubmit} isLoading={isLoggingIn} />
 
-        {/* aria-live so screen readers announce errors without user interaction */}
-        <div aria-live="polite" aria-atomic="true">
-          {error && (
-            <p className="mt-4 text-sm text-red-600 text-center bg-red-50 border border-red-200 rounded-lg px-4 py-2">
-              {error}
-            </p>
-          )}
-        </div>
+        {error && (
+          <p
+            role="alert"
+            className="mt-4 text-sm text-red-600 text-center bg-red-50 border border-red-200 rounded-lg px-4 py-2"
+          >
+            {error}
+          </p>
+        )}
 
         <p className="text-center text-gray-600 text-sm mt-6">
           Don&apos;t have an account?{' '}

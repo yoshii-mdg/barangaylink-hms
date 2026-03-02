@@ -13,6 +13,7 @@ import {
   ResidentsTransferredOut,
   PopulationGrowth,
 } from '../components/analytics';
+import { useAnalytics } from '../../../hooks/useAnalytics';
 
 export default function Analytics() {
   const [filters, setFilters] = useState({
@@ -23,60 +24,114 @@ export default function Analytics() {
     year: String(new Date().getFullYear()),
     category: 'Category',
   });
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  const { data, loading, error, reload } = useAnalytics();
 
   return (
     <div className="min-h-screen flex bg-[#F3F7F3]">
-      <DashboardSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <DashboardSidebar />
 
       <main className="flex-1 overflow-auto">
-        <DashboardHeader title="Analytics" onMenuToggle={() => setSidebarOpen(o => !o)} />
+        <DashboardHeader title="Analytics" />
 
         <section className="px-5 py-7">
           <Filters onFilterChange={setFilters} />
-          <AnalyticsCards filters={filters} />
+
+          {/* Error banner */}
+          {error && (
+            <div className="mb-4 px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700 flex items-center justify-between">
+              <span>{error}</span>
+              <button
+                onClick={reload}
+                className="ml-4 text-xs underline hover:no-underline"
+              >
+                Retry
+              </button>
+            </div>
+          )}
+
+          {/* Summary Cards */}
+          <AnalyticsCards
+            filters={filters}
+            summaryData={data.summary}
+            loading={loading}
+          />
 
           {/* Demographic Section */}
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-6">
             <h2 className="text-[21px] font-semibold text-gray-900 mb-4">Demographic</h2>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <PopulationByAgeGroup filters={filters} />
-              <GenderDistribution filters={filters} />
+              <PopulationByAgeGroup
+                filters={filters}
+                data={data.populationByAge}
+                loading={loading}
+              />
+              <GenderDistribution
+                filters={filters}
+                data={data.genderDistribution}
+                loading={loading}
+              />
             </div>
           </div>
-
 
           {/* Household Section */}
           <div className="mb-6">
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
               <h2 className="text-[21px] font-semibold text-gray-900 mb-4">Household</h2>
-              <HouseholdsPerPurok filters={filters} />
+              <HouseholdsPerPurok
+                filters={filters}
+                data={data.householdsPerPurok}
+                loading={loading}
+              />
             </div>
           </div>
 
-          {/* Brgy ID Section - ID Renewal Statistics and Status side by side */}
+          {/* Brgy ID Section */}
           <div className="mb-6">
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
               <h2 className="text-[21px] font-semibold text-gray-900 mb-4">Brgy ID</h2>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <IdRenewalStatistics filters={filters} />
-                <div>
-                  <h3 className="text-base font-medium text-gray-700 mb-3">Status</h3>
-                  <ActiveVsInactive filters={filters} />
-                </div>
+                <IdRenewalStatistics
+                  filters={filters}
+                  data={data.eidRenewalStats}
+                  loading={loading}
+                />
+                <ActiveVsInactive
+                  filters={filters}
+                  data={data.activeVsInactive}
+                  loading={loading}
+                />
               </div>
             </div>
           </div>
 
-          {/* Growth Section */}
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-            <h2 className="text-[21px] font-semibold text-gray-900 mb-4">Growth</h2>
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <NewResidentsPerYear filters={filters} />
-              <ResidentsTransferredOut filters={filters} />
-              <PopulationGrowth filters={filters} />
+          {/* Resident Trends */}
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-6">
+            <h2 className="text-[21px] font-semibold text-gray-900 mb-4">Resident Trends</h2>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <NewResidentsPerYear
+                filters={filters}
+                data={data.newResidentsPerYear}
+                loading={loading}
+              />
+              <ResidentsTransferredOut
+                filters={filters}
+                data={data.residentsTransferredOut}
+                loading={loading}
+              />
             </div>
           </div>
+
+          {/* Population Growth */}
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-6">
+            <h2 className="text-[21px] font-semibold text-gray-900 mb-4">Population Growth</h2>
+            <PopulationGrowth
+              filters={filters}
+              data={data.populationGrowth}
+              loading={loading}
+            />
+          </div>
+
         </section>
       </main>
     </div>

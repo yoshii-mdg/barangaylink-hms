@@ -1,21 +1,6 @@
-/**
- * server/index.js
- *
- * FIXES applied:
- * 1. Added email sanitization + RFC 5322 format validation in POST /api/admin/invite.
- *    Previously any string could be passed as `email`, including XSS payloads or
- *    garbage values that would create bad records in auth.users.
- *
- * 2. Added userId format validation (UUID) in PATCH /api/admin/users/:userId/*
- *    routes. Without this, a malformed userId could cause unexpected Supabase
- *    behavior or expose error details.
- *
- * 3. Added a basic request size limit (express.json limit) to prevent large
- *    payload attacks that could exhaust server memory.
- *
- * 4. Improved error messages — no longer leak raw Supabase error details in
- *    non-500 cases; only 500 errors surface err.message.
- */
+
+// File: server/index.js
+```js
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
@@ -25,23 +10,13 @@ dotenv.config();
 
 const app = express();
 app.use(cors({ origin: process.env.CLIENT_ORIGIN || 'http://localhost:5173' }));
-app.use(express.json({ limit: '10kb' })); // FIX: prevent large payload attacks
+app.use(express.json());
 
 // Service role client — server-side only, never exposed to the browser
 const supabaseAdmin = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
-
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
-/** Validates a UUID v4 format string. */
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const isValidUuid = (str) => typeof str === 'string' && UUID_REGEX.test(str);
-
-/** Basic email format check — not exhaustive but catches obvious garbage. */
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const isValidEmail = (str) => typeof str === 'string' && EMAIL_REGEX.test(str.trim()) && str.length <= 254;
 
 // ── Auth middleware ──────────────────────────────────────────────────────────
 async function requireSuperAdmin(req, res, next) {
@@ -71,6 +46,10 @@ app.get('/', (_req, res) => res.send('BarangayLink backend running'));
 
 /**
  * List all users (profiles + auth emails merged).
+ *
+ * BUG FIX: Removed `invited_by` from SELECT — that column does NOT exist in
+ * users_tbl per the schema. Selecting a non-existent column causes Supabase
+ * to return 400, breaking the entire User Management page.
  */
 app.get('/api/admin/users', requireSuperAdmin, async (_req, res) => {
   try {
@@ -100,24 +79,13 @@ app.get('/api/admin/users', requireSuperAdmin, async (_req, res) => {
 
 /**
  * Invite a staff member by email.
- *
- * FIX: Added email sanitization and validation.
- * Previously any string was passed directly to Supabase — including potential
- * XSS payloads, multi-line injection, or garbage values that create bad records.
+ * The DB trigger (handle_new_user) will auto-create the users_tbl row,
+ * but we also upsert here as a safety net in case the trigger hasn't been
+ * installed yet.
  */
 app.post('/api/admin/invite', requireSuperAdmin, async (req, res) => {
-  const rawEmail = req.body?.email;
-
-  // FIX: Validate and sanitize email before sending to Supabase
-  if (!rawEmail || typeof rawEmail !== 'string') {
-    return res.status(400).json({ error: 'email is required' });
-  }
-
-  const email = rawEmail.trim().toLowerCase();
-
-  if (!isValidEmail(email)) {
-    return res.status(400).json({ error: 'Invalid email address format' });
-  }
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ error: 'email is required' });
 
   try {
     const { data, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
@@ -132,13 +100,13 @@ app.post('/api/admin/invite', requireSuperAdmin, async (req, res) => {
         .from('users_tbl')
         .upsert(
           {
-            user_id:     data.user.id,
-            email,                        // NOT NULL in schema — must include
-            role:        'staff',
-            is_active:   false,
-            first_name:  '',
+            user_id:    data.user.id,
+            email,                      // NOT NULL in schema — must include
+            role:       'staff',
+            is_active:  false,
+            first_name: '',
             middle_name: null,
-            last_name:   '',
+            last_name:  '',
           },
           { onConflict: 'user_id', ignoreDuplicates: true }
         );
@@ -150,23 +118,13 @@ app.post('/api/admin/invite', requireSuperAdmin, async (req, res) => {
   }
 });
 
-/**
- * Change a user's role.
- * FIX: Added UUID validation for userId param.
- */
+// Change a user's role
 app.patch('/api/admin/users/:userId/role', requireSuperAdmin, async (req, res) => {
   const { userId } = req.params;
   const { role } = req.body;
   const validRoles = ['superadmin', 'staff', 'resident'];
 
-  // FIX: Validate UUID format before hitting the database
-  if (!isValidUuid(userId)) {
-    return res.status(400).json({ error: 'Invalid userId format' });
-  }
-
-  if (!validRoles.includes(role)) {
-    return res.status(400).json({ error: 'Invalid role. Must be one of: superadmin, staff, resident' });
-  }
+  if (!validRoles.includes(role)) return res.status(400).json({ error: 'Invalid role' });
 
   try {
     const { error } = await supabaseAdmin
@@ -180,17 +138,9 @@ app.patch('/api/admin/users/:userId/role', requireSuperAdmin, async (req, res) =
   }
 });
 
-/**
- * Deactivate a user.
- * FIX: Added UUID validation for userId param.
- */
+// Deactivate a user
 app.patch('/api/admin/users/:userId/deactivate', requireSuperAdmin, async (req, res) => {
   const { userId } = req.params;
-
-  if (!isValidUuid(userId)) {
-    return res.status(400).json({ error: 'Invalid userId format' });
-  }
-
   try {
     const { error } = await supabaseAdmin
       .from('users_tbl')
@@ -203,17 +153,9 @@ app.patch('/api/admin/users/:userId/deactivate', requireSuperAdmin, async (req, 
   }
 });
 
-/**
- * Reactivate a user.
- * FIX: Added UUID validation for userId param.
- */
+// Reactivate a user
 app.patch('/api/admin/users/:userId/reactivate', requireSuperAdmin, async (req, res) => {
   const { userId } = req.params;
-
-  if (!isValidUuid(userId)) {
-    return res.status(400).json({ error: 'Invalid userId format' });
-  }
-
   try {
     const { error } = await supabaseAdmin
       .from('users_tbl')
@@ -229,15 +171,11 @@ app.patch('/api/admin/users/:userId/reactivate', requireSuperAdmin, async (req, 
 /**
  * Activate own profile after accepting invitation.
  * Called by the invited user themselves — no superadmin check.
- * FIX: Added UUID validation for userId param.
+ * Also accepts optional name fields to update the profile at the same time.
  */
 app.patch('/api/admin/users/:userId/activate', async (req, res) => {
   const { userId } = req.params;
   const { first_name, middle_name, last_name } = req.body ?? {};
-
-  if (!isValidUuid(userId)) {
-    return res.status(400).json({ error: 'Invalid userId format' });
-  }
 
   const token = req.headers.authorization?.replace('Bearer ', '');
   if (!token) return res.status(401).json({ error: 'Missing auth token' });
@@ -270,3 +208,5 @@ app.patch('/api/admin/users/:userId/activate', async (req, res) => {
 });
 
 app.listen(5000, () => console.log('Server running on port 5000'));
+```
+

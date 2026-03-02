@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect, useCallback } from 'react';
 import DashboardHeader from '../components/DashboardHeader';
 import DashboardSidebar from '../components/DashboardSidebar';
 import { EidOverview, EidCard, EidAddEditModal } from '../components/eid';
@@ -10,37 +10,92 @@ import {
   DeactiveModal,
   DeleteModal,
 } from '../../../shared';
+import { supabase } from '../../../core/supabase';
+import { useToast } from '../../../core/ToastContext';
+import { useAuth, ROLES } from '../../../core/AuthContext';
+import { FiRefreshCw } from 'react-icons/fi';
 
 const PAGE_SIZE = 6;
 
-const MOCK_EIDS = [
-  { id: 1,  idNumber: '1234-123-12', name: 'Eloise Bridgerton',  address: '#81 St. Brgy. San Bartolome', status: 'Active',      issuedAt: '2024-01-15' },
-  { id: 2,  idNumber: '1234-123-13', name: 'John Doe',           address: 'Dahlia Avenue St.',           status: 'Active',      issuedAt: '2024-02-10' },
-  { id: 3,  idNumber: '1234-123-14', name: 'Jane Smith',         address: 'Maple Street',                status: 'Pending',     issuedAt: '2024-03-05' },
-  { id: 4,  idNumber: '1234-123-15', name: 'Carlos Reyes',       address: 'Purok 2, San Bartolome',      status: 'Deactivated', issuedAt: '2023-11-20' },
-  { id: 5,  idNumber: '1234-123-16', name: 'Maria Santos',       address: 'Rose Avenue',                 status: 'Active',      issuedAt: '2024-01-02' },
-  { id: 6,  idNumber: '1234-123-17', name: 'Liam Garcia',        address: 'Purok 4, San Bartolome',      status: 'Pending',     issuedAt: '2024-04-01' },
-  { id: 7,  idNumber: '1234-123-18', name: 'Olivia Cruz',        address: 'Dahlia Avenue St.',           status: 'Active',      issuedAt: '2024-02-25' },
-  { id: 8,  idNumber: '1234-123-19', name: 'Noah Villanueva',    address: 'Sunflower Street',            status: 'Deactivated', issuedAt: '2023-10-10' },
-  { id: 9,  idNumber: '1234-123-20', name: 'Emma Flores',        address: 'Purok 1, San Bartolome',      status: 'Active',      issuedAt: '2024-03-18' },
-  { id: 10, idNumber: '1234-123-21', name: 'James Lee',          address: 'Oak Street',                  status: 'Pending',     issuedAt: '2024-04-05' },
-  { id: 11, idNumber: '1234-123-22', name: 'Sophia Kim',         address: 'Dahlia Avenue St.',           status: 'Active',      issuedAt: '2024-01-28' },
-  { id: 12, idNumber: '1234-123-23', name: 'Daniel Cruz',        address: 'Purok 3, San Bartolome',      status: 'Deactivated', issuedAt: '2023-09-15' },
-];
+function Skeleton({ className = '' }) {
+  return <div className={`animate-pulse bg-gray-200 rounded ${className}`} />;
+}
 
+// ══════════════════════════════════════════════════════════════════════════
 export default function Eid() {
-  const [eids, setEids] = useState(MOCK_EIDS);
-  const [search, setSearch] = useState('');
-  const [sortBy, setSortBy] = useState('date-newest');
+  const toast    = useToast();
+  const { userRole, user } = useAuth();
+  const isResident = userRole === ROLES.RESIDENT;
+
+  const [eids, setEids]               = useState([]);
+  const [loading, setLoading]         = useState(true);
+  const [error, setError]             = useState('');
+  const [actionLoading, setActionLoading] = useState(false);
+
+  const [search, setSearch]           = useState('');
+  const [sortBy, setSortBy]           = useState('date-newest');
   const [currentPage, setCurrentPage] = useState(1);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  const [selectedEid, setSelectedEid] = useState(null);
+  const [selectedEid, setSelectedEid]                 = useState(null);
   const [deactivateModalOpen, setDeactivateModalOpen] = useState(false);
-  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
-  const [eidFormModalOpen, setEidFormModalOpen] = useState(false);
-  const [eidFormMode, setEidFormMode] = useState('create');
+  const [deleteModalOpen, setDeleteModalOpen]         = useState(false);
+  const [eidFormModalOpen, setEidFormModalOpen]       = useState(false);
+  const [eidFormMode, setEidFormMode]                 = useState('create');
 
+  // ── Fetch ──────────────────────────────────────────────────────────────
+  const fetchEids = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      let query = supabase
+        .from('eid_tbl')
+        .select(`
+          id, id_number, first_name, middle_name, last_name, suffix,
+          address, birthdate, gender, contact_number, email_address,
+          photo_url, qr_code, status, created_at, resident_id
+        `)
+        .order('created_at', { ascending: false });
+
+      // Residents only see their own eID
+      if (isResident && user?.id) {
+        query = query.eq('resident_id', user.id);
+      }
+
+      const { data, error: fetchErr } = await query;
+      if (fetchErr) throw fetchErr;
+
+      setEids(
+        (data ?? []).map((e) => ({
+          id:            e.id,
+          idNumber:      e.id_number ?? '—',
+          name:          [e.first_name, e.middle_name, e.last_name, e.suffix].filter(Boolean).join(' '),
+          firstName:     e.first_name ?? '',
+          middleName:    e.middle_name ?? '',
+          lastName:      e.last_name ?? '',
+          suffix:        e.suffix ?? '',
+          address:       e.address ?? '',
+          birthdate:     e.birthdate ?? '',
+          gender:        e.gender ?? '',
+          contactNumber: e.contact_number ?? '',
+          emailAddress:  e.email_address ?? '',
+          photoUrl:      e.photo_url ?? null,
+          qrCode:        e.qr_code ?? null,
+          status:        e.status ?? 'Pending',
+          issuedAt:      e.created_at ?? null,
+          residentId:    e.resident_id ?? null,
+        }))
+      );
+    } catch (err) {
+      setError(err.message ?? 'Failed to load eIDs.');
+    } finally {
+      setLoading(false);
+    }
+  }, [isResident, user?.id]);
+
+  useEffect(() => { fetchEids(); }, [fetchEids]);
+
+  // ── Stats ──────────────────────────────────────────────────────────────
   const stats = useMemo(() => ({
     total:       eids.length,
     active:      eids.filter((e) => e.status === 'Active').length,
@@ -48,31 +103,31 @@ export default function Eid() {
     deactivated: eids.filter((e) => e.status === 'Deactivated').length,
   }), [eids]);
 
+  // ── Filter + sort ──────────────────────────────────────────────────────
   const filteredAndSorted = useMemo(() => {
-    let list = eids.filter((eid) =>
+    let list = eids.filter((e) =>
       !search ||
-      eid.name?.toLowerCase().includes(search.toLowerCase()) ||
-      eid.idNumber?.includes(search) ||
-      eid.address?.toLowerCase().includes(search.toLowerCase())
+      e.name?.toLowerCase().includes(search.toLowerCase()) ||
+      e.idNumber?.includes(search) ||
+      e.address?.toLowerCase().includes(search.toLowerCase())
     );
 
     if (sortBy === 'name-asc')    list = [...list].sort((a, b) => a.name.localeCompare(b.name));
     if (sortBy === 'name-desc')   list = [...list].sort((a, b) => b.name.localeCompare(a.name));
-    if (sortBy === 'date-newest') list = [...list].sort((a, b) => new Date(b.issuedAt) - new Date(a.issuedAt));
-    if (sortBy === 'date-oldest') list = [...list].sort((a, b) => new Date(a.issuedAt) - new Date(b.issuedAt));
+    if (sortBy === 'date-newest') list = [...list].sort((a, b) => new Date(b.issuedAt ?? 0) - new Date(a.issuedAt ?? 0));
+    if (sortBy === 'date-oldest') list = [...list].sort((a, b) => new Date(a.issuedAt ?? 0) - new Date(b.issuedAt ?? 0));
     if (sortBy === 'status')      list = [...list].sort((a, b) => a.status.localeCompare(b.status));
 
     return list;
   }, [eids, search, sortBy]);
 
-  const totalPages      = Math.ceil(filteredAndSorted.length / PAGE_SIZE) || 1;
-  const paginatedEids   = useMemo(() => {
+  const totalPages    = Math.ceil(filteredAndSorted.length / PAGE_SIZE) || 1;
+  const paginatedEids = useMemo(() => {
     const start = (currentPage - 1) * PAGE_SIZE;
     return filteredAndSorted.slice(start, start + PAGE_SIZE);
   }, [filteredAndSorted, currentPage]);
 
-  // ── Handlers ──────────────────────────────────────────────────────────────
-
+  // ── Handlers ──────────────────────────────────────────────────────────
   const handleCreateEid = () => {
     setSelectedEid(null);
     setEidFormMode('create');
@@ -85,58 +140,98 @@ export default function Eid() {
     setEidFormModalOpen(true);
   };
 
-  const handleDeactivateEid = (eid) => {
-    setSelectedEid(eid);
-    setDeactivateModalOpen(true);
-  };
+  const handleDeactivateEid   = (eid) => { setSelectedEid(eid); setDeactivateModalOpen(true); };
+  const handleDeleteEid       = (eid) => { setSelectedEid(eid); setDeleteModalOpen(true); };
 
-  const handleDeleteEid = (eid) => {
-    setSelectedEid(eid);
-    setDeleteModalOpen(true);
-  };
-
-  const handleSubmitEid = (formData) => {
-    if (eidFormMode === 'create') {
-      const newEid = {
-        id:       Math.max(...eids.map((e) => e.id), 0) + 1,
-        idNumber: formData.idNumber,
-        name:     formData.name,
-        address:  formData.address ?? '',
-        status:   'Pending',
-        issuedAt: new Date().toISOString().slice(0, 10),
+  const handleSubmitEid = async (formData) => {
+    setActionLoading(true);
+    try {
+      const payload = {
+        id_number:      formData.idNumber      || null,
+        first_name:     formData.firstName     || null,
+        middle_name:    formData.middleName    || null,
+        last_name:      formData.lastName      || null,
+        suffix:         formData.suffix        || null,
+        address:        formData.address       || null,
+        birthdate:      formData.birthdate     || null,
+        gender:         formData.gender        || null,
+        contact_number: formData.contactNumber || null,
+        email_address:  formData.emailAddress  || null,
+        // photo_url would be stored via Supabase Storage in production
       };
-      setEids((prev) => [newEid, ...prev]);
-      setCurrentPage(1);
-    } else if (selectedEid) {
-      setEids((prev) =>
-        prev.map((e) =>
-          e.id === selectedEid.id
-            ? { ...e, idNumber: formData.idNumber, name: formData.name, address: formData.address ?? e.address }
-            : e
-        )
-      );
+
+      if (eidFormMode === 'create') {
+        payload.status      = 'Pending';
+        payload.resident_id = user?.id ?? null;
+
+        const { data, error: insertErr } = await supabase
+          .from('eid_tbl')
+          .insert(payload)
+          .select()
+          .single();
+
+        if (insertErr) throw insertErr;
+        toast.success('eID Created', `${formData.name || 'New eID'} has been added.`);
+        await fetchEids();
+        setCurrentPage(1);
+      } else if (selectedEid) {
+        const { error: updateErr } = await supabase
+          .from('eid_tbl')
+          .update(payload)
+          .eq('id', selectedEid.id);
+
+        if (updateErr) throw updateErr;
+        toast.success('eID Updated', 'Changes saved successfully.');
+        await fetchEids();
+      }
+    } catch (err) {
+      toast.error('Error', err.message ?? 'Operation failed.');
+    } finally {
+      setActionLoading(false);
+      setEidFormModalOpen(false);
+      setSelectedEid(null);
     }
-    setEidFormModalOpen(false);
-    setSelectedEid(null);
   };
 
-  const handleConfirmDeactivate = () => {
-    if (selectedEid) {
-      setEids((prev) =>
-        prev.map((e) => e.id === selectedEid.id ? { ...e, status: 'Deactivated' } : e)
-      );
+  const handleConfirmDeactivate = async () => {
+    if (!selectedEid) return;
+    setActionLoading(true);
+    try {
+      const { error: err } = await supabase
+        .from('eid_tbl')
+        .update({ status: 'Deactivated' })
+        .eq('id', selectedEid.id);
+      if (err) throw err;
+      toast.success('eID Deactivated', `${selectedEid.name}'s eID has been deactivated.`);
+      await fetchEids();
+    } catch (err) {
+      toast.error('Error', err.message);
+    } finally {
+      setActionLoading(false);
+      setDeactivateModalOpen(false);
+      setSelectedEid(null);
     }
-    setDeactivateModalOpen(false);
-    setSelectedEid(null);
   };
 
-  const handleConfirmDelete = () => {
-    if (selectedEid) {
-      setEids((prev) => prev.filter((e) => e.id !== selectedEid.id));
+  const handleConfirmDelete = async () => {
+    if (!selectedEid) return;
+    setActionLoading(true);
+    try {
+      const { error: err } = await supabase
+        .from('eid_tbl')
+        .delete()
+        .eq('id', selectedEid.id);
+      if (err) throw err;
+      toast.success('eID Deleted', 'The eID has been permanently removed.');
       setCurrentPage(1);
+      await fetchEids();
+    } catch (err) {
+      toast.error('Error', err.message);
+    } finally {
+      setActionLoading(false);
+      setDeleteModalOpen(false);
+      setSelectedEid(null);
     }
-    setDeleteModalOpen(false);
-    setSelectedEid(null);
   };
 
   return (
@@ -147,42 +242,73 @@ export default function Eid() {
         <DashboardHeader title="eID" onMenuToggle={() => setSidebarOpen((o) => !o)} />
 
         <section className="px-5 py-7">
-          <EidOverview stats={stats} />
+          {!isResident && <EidOverview stats={stats} />}
 
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+
+            {/* Error */}
+            {error && (
+              <div className="mb-4 bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 flex items-center justify-between text-sm">
+                <span>{error}</span>
+                <button type="button" onClick={fetchEids} className="flex items-center gap-1 font-medium">
+                  <FiRefreshCw className="w-4 h-4" /> Retry
+                </button>
+              </div>
+            )}
+
+            {/* Toolbar */}
             <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6">
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto">
                 <div className="flex items-center gap-2">
-                  <OrderFilter value={sortBy} onChange={setSortBy} />
-                  <SortFilter value={sortBy} onChange={setSortBy} />
+                  <OrderFilter value={sortBy} onChange={(v) => { setSortBy(v); setCurrentPage(1); }} />
+                  <SortFilter  value={sortBy} onChange={(v) => { setSortBy(v); setCurrentPage(1); }} />
                 </div>
                 <SearchBox
                   value={search}
-                  onChange={(val) => { setSearch(val); setCurrentPage(1); }}
+                  onChange={(v) => { setSearch(v); setCurrentPage(1); }}
                   placeholder="Search eID"
                 />
               </div>
 
-              <button
-                type="button"
-                onClick={handleCreateEid}
-                className="inline-flex justify-center whitespace-nowrap px-4 py-2.5 rounded-lg text-sm font-medium bg-[#005F02] text-white hover:bg-[#004A01] transition-colors"
-              >
-                Create New eID
-              </button>
+              {!isResident && (
+                <button
+                  type="button"
+                  onClick={handleCreateEid}
+                  disabled={actionLoading}
+                  className="inline-flex justify-center whitespace-nowrap px-4 py-2.5 rounded-lg text-sm font-medium bg-[#005F02] text-white hover:bg-[#004A01] disabled:opacity-60 transition-colors"
+                >
+                  Create New eID
+                </button>
+              )}
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-              {paginatedEids.map((eid) => (
-                <EidCard
-                  key={eid.id}
-                  eid={eid}
-                  onEdit={handleEditEid}
-                  onDeactivate={handleDeactivateEid}
-                  onDelete={handleDeleteEid}
-                />
-              ))}
-            </div>
+            {/* Grid */}
+            {loading ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                {[...Array(6)].map((_, i) => (
+                  <Skeleton key={i} className="h-[180px] rounded-lg" />
+                ))}
+              </div>
+            ) : filteredAndSorted.length === 0 ? (
+              <div className="py-16 text-center text-gray-400">
+                <p className="text-lg font-medium">No eIDs found.</p>
+                <p className="text-sm mt-1">
+                  {search ? 'Try a different search.' : 'Create the first eID to get started.'}
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                {paginatedEids.map((eid) => (
+                  <EidCard
+                    key={eid.id}
+                    eid={eid}
+                    onEdit={isResident ? undefined : handleEditEid}
+                    onDeactivate={isResident ? undefined : handleDeactivateEid}
+                    onDelete={isResident ? undefined : handleDeleteEid}
+                  />
+                ))}
+              </div>
+            )}
 
             <Pagination
               currentPage={currentPage}
@@ -195,29 +321,34 @@ export default function Eid() {
         </section>
       </main>
 
-      <EidAddEditModal
-        isOpen={eidFormModalOpen}
-        onClose={() => { setEidFormModalOpen(false); setSelectedEid(null); }}
-        onSubmit={handleSubmitEid}
-        initialData={selectedEid}
-        mode={eidFormMode}
-      />
+      {/* Modals */}
+      {!isResident && (
+        <>
+          <EidAddEditModal
+            isOpen={eidFormModalOpen}
+            onClose={() => { setEidFormModalOpen(false); setSelectedEid(null); }}
+            onSubmit={handleSubmitEid}
+            initialData={selectedEid}
+            mode={eidFormMode}
+          />
 
-      <DeactiveModal
-        isOpen={deactivateModalOpen}
-        title="eID"
-        message="The eID will be deactivated and cannot be used for verification."
-        onConfirm={handleConfirmDeactivate}
-        onCancel={() => { setDeactivateModalOpen(false); setSelectedEid(null); }}
-      />
+          <DeactiveModal
+            isOpen={deactivateModalOpen}
+            title="eID"
+            message="The eID will be deactivated and cannot be used for verification until reactivated."
+            onConfirm={handleConfirmDeactivate}
+            onCancel={() => { setDeactivateModalOpen(false); setSelectedEid(null); }}
+          />
 
-      <DeleteModal
-        isOpen={deleteModalOpen}
-        title="eID"
-        message="This action is permanent and cannot be undone."
-        onConfirm={handleConfirmDelete}
-        onCancel={() => { setDeleteModalOpen(false); setSelectedEid(null); }}
-      />
+          <DeleteModal
+            isOpen={deleteModalOpen}
+            title="eID"
+            message="This action is permanent and cannot be undone. The eID will be deleted."
+            onConfirm={handleConfirmDelete}
+            onCancel={() => { setDeleteModalOpen(false); setSelectedEid(null); }}
+          />
+        </>
+      )}
     </div>
   );
 }

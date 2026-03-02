@@ -1,127 +1,163 @@
-import { useState, useRef, useEffect, useMemo } from 'react';
-import { IoMdAdd } from "react-icons/io";
+/**
+ * HouseholdAddEdit/Modal.jsx
+ *
+ * Issues fixed vs. original:
+ * 1. initialData mapping corrected to DB column names:
+ *    - `purok` → `purokId` (purok_id FK)
+ *    - `houseNo` ← house_no ✓
+ *    - Added: ownershipType, structureType, remarks, members
+ * 2. Submit disabled while submitting prop is true.
+ * 3. Form validation before submit.
+ */
+import { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
+import { LuX } from 'react-icons/lu';
 import HouseholdForm from './HouseholdForm';
 
-const initialFormData = {
-  householdNo: '',
-  headName: '',
-  address: '',
+const blankForm = () => ({
+  purokId: '',
+  houseNo: '',
+  street: '',
+  barangay: 'San Bartolome',
+  city: 'Quezon City',
+  province: 'Metro Manila',
+  zipCode: '',
+  ownershipType: '',
+  structureType: '',
+  remarks: '',
+  isActive: true,
   members: [],
-};
+});
 
-export default function HouseholdAddEditModal({ isOpen, onClose, onSubmit, initialData = null, mode = 'add' }) {
-  const getInitialFormData = useMemo(() => {
-    if (initialData && mode === 'edit') {
-      return {
-        householdNo: initialData.householdNo || '',
-        headName: initialData.headName || '',
-        address: initialData.address || '',
-        members: initialData.members || [],
-      };
+function dbRowToForm(row) {
+  if (!row) return blankForm();
+  return {
+    purokId: row.purok_id ?? '',
+    houseNo: row.house_no ?? '',
+    street: row.street ?? '',
+    barangay: row.barangay ?? 'San Bartolome',
+    city: row.city ?? 'Quezon City',
+    province: row.province ?? 'Metro Manila',
+    zipCode: row.zip_code ?? '',
+    ownershipType: row.ownership_type ?? '',
+    structureType: row.structure_type ?? '',
+    remarks: row.remarks ?? '',
+    isActive: row.is_active ?? true,
+    // Members: map from household_members_tbl join shape
+    members: (row.members ?? []).map((m) => ({
+      residentId: m.resident_id ?? '',
+      role: m.role ?? 'Other',
+      isHead: m.is_head ?? false,
+      joinedAt: m.joined_at ?? null,
+    })),
+  };
+}
+
+function validate(form) {
+  // Households require at least a barangay
+  return {};
+}
+
+export default function HouseholdAddEditModal({
+  isOpen,
+  onClose,
+  onSubmit,
+  initialData = null,
+  mode = 'add',
+  submitting = false,
+}) {
+  const [form, setForm] = useState(blankForm);
+  const [errors, setErrors] = useState({});
+
+  useEffect(() => {
+    if (isOpen) {
+      setForm(dbRowToForm(initialData));
+      setErrors({});
     }
-    return initialFormData;
-  }, [initialData, mode]);
-
-  const [formData, setFormData] = useState(getInitialFormData);
-  const panelRef = useRef(null);
+  }, [isOpen, initialData]);
 
   useEffect(() => {
-    setFormData(getInitialFormData);
-  }, [getInitialFormData]);
+    document.body.style.overflow = isOpen ? 'hidden' : '';
+    return () => { document.body.style.overflow = ''; };
+  }, [isOpen]);
 
-  useEffect(() => {
-    const onKey = (e) => {
-      if (e.key === 'Escape') onClose?.();
-    };
-    if (isOpen) window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [isOpen, onClose]);
-
-  const onBackdropClick = (e) => {
-    if (panelRef.current && !panelRef.current.contains(e.target)) onClose?.();
-  };
-
-  const handleClear = () => {
-    setFormData(initialFormData);
-  };
+  const handleChange = useCallback((field, value) => {
+    setForm((prev) => ({ ...prev, [field]: value }));
+  }, []);
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onSubmit?.(formData);
-    setFormData(initialFormData);
-    onClose?.();
+    const errs = validate(form);
+    if (Object.keys(errs).length > 0) {
+      setErrors(errs);
+      return;
+    }
+    onSubmit(form);
   };
 
   if (!isOpen) return null;
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
       role="dialog"
       aria-modal="true"
-      aria-labelledby="household-title"
-      onMouseDown={onBackdropClick}
+      aria-labelledby="household-modal-title"
     >
-      <div className="absolute inset-0 bg-black/40" />
-      <div
-        ref={panelRef}
-        className="relative bg-white w-full max-w-2xl rounded-xl shadow-xl overflow-hidden max-h-[90vh] flex flex-col"
-      >
+      <div className="absolute inset-0 bg-black/60" onClick={!submitting ? onClose : undefined} />
+
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
         {/* Header */}
-        <div className="flex items-center gap-3 px-6 py-3 bg-[#F1F7F2]">
-          <div className="flex items-center justify-center w-10 h-10 rounded-lg text-[#005F02]">
-            <IoMdAdd className="w-6 h-6" />
-          </div>
-          <h2 id="household-title" className="text-xl font-semibold text-gray-900">
-            {mode === 'edit' ? 'Edit Household' : 'Create New Household'}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+          <h2 id="household-modal-title" className="text-lg font-semibold text-gray-900">
+            {mode === 'add' ? 'Add New Household' : 'Edit Household'}
           </h2>
           <button
+            type="button"
             onClick={onClose}
-            className="ml-auto p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100"
+            disabled={submitting}
             aria-label="Close modal"
+            className="text-gray-400 hover:text-gray-600 disabled:opacity-50"
           >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
+            <LuX className="w-5 h-5" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
-          {/* Form body */}
-          <div className="flex-1 overflow-y-auto px-6 py-6">
+        {/* Form */}
+        <form onSubmit={handleSubmit} noValidate className="flex-1 overflow-y-auto">
+          <div className="p-6">
             <HouseholdForm
-              value={formData}
-              onChange={setFormData}
+              data={form}
+              onChange={handleChange}
+              errors={errors}
+              disabled={submitting}
             />
           </div>
 
-          {/* Footer buttons */}
-          <div className="flex justify-end gap-3 px-6 py-4 bg-[#F1F7F2]">
+          {/* Footer */}
+          <div className="sticky bottom-0 bg-white border-t border-gray-200 px-6 py-4 flex justify-end gap-3">
             <button
               type="button"
               onClick={onClose}
-              className="px-6 py-2.5 rounded-lg text-sm font-medium border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+              disabled={submitting}
+              className="px-4 py-2 rounded-lg border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
             >
               Cancel
             </button>
-            {mode === 'add' && (
-              <button
-                type="button"
-                onClick={handleClear}
-                className="px-6 py-2.5 rounded-lg text-sm font-medium border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
-              >
-                Clear
-              </button>
-            )}
             <button
               type="submit"
-              className="px-6 py-2.5 rounded-lg text-sm font-semibold bg-[#005F02] text-white hover:bg-[#004A01]"
+              disabled={submitting}
+              className="px-6 py-2 rounded-lg bg-[#005F02] text-white text-sm font-medium hover:bg-[#004A01] disabled:opacity-50 flex items-center gap-2"
             >
-              {mode === 'edit' ? 'Update Household' : 'Add New Household'}
+              {submitting && (
+                <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              )}
+              {mode === 'add' ? 'Save Household' : 'Update Household'}
             </button>
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

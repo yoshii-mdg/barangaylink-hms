@@ -1,0 +1,2875 @@
+
+// File: src/App.css
+```css
+@import "tailwindcss";
+```
+
+
+// File: src/App.jsx
+```jsx
+import { AuthProvider } from './core/AuthContext';
+import { ToastProvider } from './core/ToastContext';
+import AppRoutes from "./routes/AppRoutes";
+
+function App() {
+  return (
+    <AuthProvider>
+      <ToastProvider>
+        <AppRoutes />
+      </ToastProvider>
+    </AuthProvider>
+  );
+}
+
+export default App;
+```
+
+
+================================================================================
+FOLDER: core
+================================================================================
+
+
+// File: src/core/adminApi.js
+```js
+import { supabase } from './supabase';
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
+async function getAuthHeaders() {
+  const { data: { session } } = await supabase.auth.getSession();
+  const token = session?.access_token;
+  if (!token) throw new Error('Not authenticated');
+  return { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
+}
+
+async function request(method, path, body) {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${API_URL}${path}`, {
+    method,
+    headers,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error || `Request failed: ${res.status}`);
+  return json;
+}
+
+// ── Admin API calls ──────────────────────────────────────────────────────────
+
+export const adminApi = {
+  /** Fetch all users with emails merged in */
+  listUsers: () => request('GET', '/api/admin/users'),
+
+  /** Invite a staff member by email */
+  inviteStaff: (email) => request('POST', '/api/admin/invite', { email }),
+
+  /** Change a user's role */
+  changeRole: (userId, role) => request('PATCH', `/api/admin/users/${userId}/role`, { role }),
+
+  /** Deactivate a user */
+  deactivateUser: (userId) => request('PATCH', `/api/admin/users/${userId}/deactivate`),
+
+  /** Reactivate a user */
+  reactivateUser: (userId) => request('PATCH', `/api/admin/users/${userId}/reactivate`),
+
+  /**
+   * Activate own profile after accepting invitation.
+   * Called by the invited user themselves — no superadmin check.
+   * Optionally pass name fields to update the profile row at the same time.
+   */
+  activateProfile: (userId, nameData) =>
+    request('PATCH', `/api/admin/users/${userId}/activate`, nameData ?? {}),
+};
+```
+
+
+// File: src/core/AuthContext.jsx
+```jsx
+import { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import { supabase } from './supabase';
+import { adminApi } from './adminApi';
+
+const AuthContext = createContext(null);
+
+export const ROLES = {
+  SUPERADMIN: 'superadmin',
+  STAFF: 'staff',
+  RESIDENT: 'resident',
+};
+
+export const ROLE_DASHBOARDS = {
+  [ROLES.SUPERADMIN]: '/admin/dashboard',
+  [ROLES.STAFF]: '/staff/dashboard',
+  [ROLES.RESIDENT]: '/resident/dashboard',
+};
+
+export const ROLE_LABELS = {
+  [ROLES.SUPERADMIN]: 'Super Administrator',
+  [ROLES.STAFF]: 'Barangay Staff',
+  [ROLES.RESIDENT]: 'Resident',
+};
+
+export function AuthProvider({ children }) {
+  // undefined = not yet initialized | null = no session | object = active session
+  const [session, setSession] = useState(undefined);
+  const [userRole, setUserRole] = useState(null);
+  const [userProfile, setUserProfile] = useState(null);
+  const [roleLoading, setRoleLoading] = useState(true);
+
+  const fetchUserRole = useCallback(async (userId) => {
+    if (!userId) {
+      setUserRole(null);
+      setUserProfile(null);
+      setRoleLoading(false);
+      return;
+    }
+    setRoleLoading(true);
+    try {
+      // ─────────────────────────────────────────────────────────────────────
+      // BUG FIX: Use .maybeSingle() instead of .single()
+      //
+      // .single() returns HTTP 406 when 0 rows are found, which the browser
+      // logs as a network error. This happens every time a user signs up but
+      // their users_tbl row hasn't been created yet (e.g. email not confirmed).
+      //
+      // .maybeSingle() returns { data: null, error: null } for 0 rows — much
+      // easier to handle and generates NO console errors.
+      // ─────────────────────────────────────────────────────────────────────
+      const { data, error } = await supabase
+        .from('users_tbl')
+        .select('id, role, first_name, middle_name, last_name, is_active')
+        .eq('user_id', userId)
+        .maybeSingle();   // ← KEY FIX: was .single(), now .maybeSingle()
+
+      if (error) {
+        // Real DB error (not "0 rows") — log it
+        console.error('[AuthContext] Error fetching user profile:', error.message);
+        setUserRole(null);
+        setUserProfile(null);
+        return;
+      }
+
+      if (!data) {
+        // No row in users_tbl yet. This happens when:
+        //   1. User just signed up but hasn't confirmed their email
+        //   2. The auto-create trigger hasn't run yet
+        //   3. Row creation failed silently
+        // Treat as "no role" — the login flow will handle the redirect
+        setUserRole(null);
+        setUserProfile(null);
+        return;
+      }
+
+      // User exists but is deactivated — sign them out silently
+      if (!data.is_active) {
+        await supabase.auth.signOut();
+        setUserRole(null);
+        setUserProfile(null);
+        return;
+      }
+
+      setUserRole(data.role ?? null);
+      setUserProfile(data);
+    } finally {
+      setRoleLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    // ── Initial session check ──────────────────────────────────────────────
+    supabase.auth.getSession().then(({ data: { session: initialSession } }) => {
+      setSession(initialSession);
+      fetchUserRole(initialSession?.user?.id ?? null);
+    });
+
+    // ── Auth state listener ───────────────────────────────────────────────
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, newSession) => {
+      setSession(newSession);
+
+      if (event === 'SIGNED_OUT') {
+        // Immediately clear state — no async fetch needed
+        setUserRole(null);
+        setUserProfile(null);
+        setRoleLoading(false);
+      } else if (
+        event === 'SIGNED_IN'      ||   // BUG FIX: was previously SKIPPED — caused infinite load
+        event === 'TOKEN_REFRESHED' ||
+        event === 'USER_UPDATED'
+      ) {
+        fetchUserRole(newSession?.user?.id ?? null);
+      } else if (event === 'PASSWORD_RECOVERY') {
+        // Don't fetch role for password recovery — just unlock loading
+        setRoleLoading(false);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [fetchUserRole]);
+
+  const getDashboardPath = useCallback((role) => {
+    return ROLE_DASHBOARDS[role ?? userRole] ?? '/login';
+  }, [userRole]);
+
+  // ── Auth methods ──────────────────────────────────────────────────────────
+
+  const login = async ({ email, password }) => {
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) throw error;
+
+    const userId = data.session?.user?.id;
+    if (!userId) throw new Error('Login failed — no session returned.');
+
+    // Fetch profile to validate is_active status
+    const { data: profile, error: profileError } = await supabase
+      .from('users_tbl')
+      .select('id, role, first_name, last_name, middle_name, is_active')
+      .eq('user_id', userId)
+      .maybeSingle();   // maybeSingle: won't throw if row missing
+
+    if (profileError) {
+      throw new Error('Unable to verify your account. Please try again.');
+    }
+
+    if (!profile) {
+      // Auth row exists but no users_tbl row — trigger may not have run yet.
+      // Sign them out and show a clear message.
+      await supabase.auth.signOut();
+      throw new Error(
+        'Your account setup is incomplete. Please confirm your email first, ' +
+        'or contact an administrator if you believe this is an error.'
+      );
+    }
+
+    if (!profile.is_active) {
+      setTimeout(() => supabase.auth.signOut(), 100);
+      throw new Error('Your account has been deactivated. Please contact an administrator.');
+    }
+
+    const role = profile.role ?? null;
+    setUserRole(role);
+    setUserProfile(profile);
+    return role;
+  };
+
+  const signup = async ({ email, password, firstName, middleName, lastName }) => {
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          first_name: firstName,
+          middle_name: middleName || null,
+          last_name: lastName,
+        },
+      },
+    });
+    if (error) throw error;
+    // After signup: Supabase sends a confirmation email.
+    // The DB trigger (handle_new_user) creates the users_tbl row automatically.
+    // The user must confirm their email before they can log in.
+    // is_active remains FALSE until an admin activates them (or email is confirmed
+    // and the activation flow runs).
+  };
+
+  const resendConfirmation = async (email) => {
+    const { error } = await supabase.auth.resend({ type: 'signup', email });
+    if (error) throw error;
+  };
+
+  const resetPassword = async (email) => {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+    if (error) throw error;
+  };
+
+  const updatePassword = async (newPassword) => {
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) throw error;
+  };
+
+  const logout = async () => {
+    setUserRole(null);
+    setUserProfile(null);
+    await supabase.auth.signOut();
+  };
+
+  // ── Admin methods (proxied through Express server) ──────────────────────
+
+  const changeUserRole = (targetUserId, newRole) => adminApi.changeRole(targetUserId, newRole);
+  const deactivateUser = (targetUserId) => adminApi.deactivateUser(targetUserId);
+  const reactivateUser = (targetUserId) => adminApi.reactivateUser(targetUserId);
+  const inviteStaff = (email) => adminApi.inviteStaff(email);
+
+  const displayName = userProfile
+    ? [userProfile.first_name, userProfile.last_name].filter(Boolean).join(' ')
+    : '';
+
+  // isLoading logic:
+  // • session === undefined  → Supabase hasn't responded to getSession() yet
+  // • session !== null && roleLoading → logged in but role fetch in progress
+  // • session === null       → definitively logged out; roleLoading should be false
+  const isLoading = session === undefined || (session !== null && roleLoading);
+
+  const value = {
+    session,
+    user: session?.user ?? null,
+    userRole,
+    userProfile,
+    displayName,
+    roleLabel: ROLE_LABELS[userRole] ?? '',
+    isLoading,
+    isAuthenticated: !!session,
+    getDashboardPath,
+    login,
+    signup,
+    resendConfirmation,
+    resetPassword,
+    updatePassword,
+    logout,
+    isResident: userRole === ROLES.RESIDENT,
+    isStaff: userRole === ROLES.STAFF,
+    isSuperAdmin: userRole === ROLES.SUPERADMIN,
+    changeUserRole,
+    deactivateUser,
+    reactivateUser,
+    inviteStaff,
+  };
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
+export function useAuth() {
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error('useAuth must be used inside <AuthProvider>');
+  return ctx;
+}
+```
+
+
+// File: src/core/supabase.js
+```js
+import { createClient } from '@supabase/supabase-js';
+
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+// Warn in development instead of throwing — throwing crashes the entire app
+// before React even mounts, making it impossible to even see an error page.
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.error(
+    '[BarangayLink] Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY in .env\n' +
+    'Create a .env file in the project root with these variables.'
+  );
+}
+
+export const supabase = createClient(
+  supabaseUrl  || 'https://placeholder.supabase.co',
+  supabaseAnonKey || 'placeholder-anon-key'
+);
+```
+
+
+// File: src/core/ToastContext.jsx
+```jsx
+import { createContext, useContext, useState, useCallback, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
+import { LuBadgeCheck, LuX, LuInfo, LuTriangleAlert } from 'react-icons/lu';
+
+const ToastContext = createContext(null);
+
+const ICONS = {
+  success: LuBadgeCheck,
+  error: LuX,
+  info: LuInfo,
+  warning: LuTriangleAlert,
+};
+
+const STYLES = {
+  success: 'bg-white border-l-4 border-emerald-500',
+  error: 'bg-white border-l-4 border-red-500',
+  info: 'bg-white border-l-4 border-blue-500',
+  warning: 'bg-white border-l-4 border-yellow-500',
+};
+
+const ICON_STYLES = {
+  success: 'text-emerald-500',
+  error: 'text-red-500',
+  info: 'text-blue-500',
+  warning: 'text-yellow-500',
+};
+
+function Toast({ id, type = 'info', title, message, onRemove }) {
+  const [visible, setVisible] = useState(false);
+  const [leaving, setLeaving] = useState(false);
+  const Icon = ICONS[type];
+
+  useEffect(() => {
+    const t = setTimeout(() => setVisible(true), 10);
+    return () => clearTimeout(t);
+  }, []);
+
+  const dismiss = useCallback(() => {
+    setLeaving(true);
+    setTimeout(() => onRemove(id), 350);
+  }, [id, onRemove]);
+
+  useEffect(() => {
+    const timer = setTimeout(dismiss, 4500);
+    return () => clearTimeout(timer);
+  }, [dismiss]);
+
+  return (
+    <div
+      className={`
+        flex items-start gap-3 w-80 rounded-xl shadow-xl px-4 py-3
+        ${STYLES[type]}
+        transition-all duration-300 ease-out
+        ${visible && !leaving ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-8'}
+      `}
+    >
+      <Icon className={`w-5 h-5 mt-0.5 flex-shrink-0 ${ICON_STYLES[type]}`} />
+      <div className="flex-1 min-w-0">
+        {title && <p className="text-sm font-semibold text-gray-900">{title}</p>}
+        {message && <p className="text-sm text-gray-600 mt-0.5 leading-snug">{message}</p>}
+      </div>
+      <button
+        onClick={dismiss}
+        className="text-gray-400 hover:text-gray-600 transition-colors mt-0.5 flex-shrink-0"
+        aria-label="Dismiss"
+      >
+        <LuX className="w-4 h-4" />
+      </button>
+    </div>
+  );
+}
+
+export function ToastProvider({ children }) {
+  const [toasts, setToasts] = useState([]);
+
+  const addToast = useCallback(({ type = 'info', title, message }) => {
+    const id = Date.now() + Math.random();
+    setToasts(prev => [...prev, { id, type, title, message }]);
+  }, []);
+
+  const removeToast = useCallback((id) => {
+    setToasts(prev => prev.filter(t => t.id !== id));
+  }, []);
+
+  // Memoized so consumers don't re-render when ToastProvider re-renders
+  const toast = useMemo(() => ({
+    success: (title, message) => addToast({ type: 'success', title, message }),
+    error: (title, message) => addToast({ type: 'error', title, message }),
+    info: (title, message) => addToast({ type: 'info', title, message }),
+    warning: (title, message) => addToast({ type: 'warning', title, message }),
+  }), [addToast]);
+
+  return (
+    <ToastContext.Provider value={toast}>
+      {children}
+      {createPortal(
+        <div className="fixed top-5 right-5 z-[9999] flex flex-col gap-3 pointer-events-none">
+          {toasts.map(t => (
+            <div key={t.id} className="pointer-events-auto">
+              <Toast {...t} onRemove={removeToast} />
+            </div>
+          ))}
+        </div>,
+        document.body
+      )}
+    </ToastContext.Provider>
+  );
+}
+
+export function useToast() {
+  const ctx = useContext(ToastContext);
+  if (!ctx) throw new Error('useToast must be used within ToastProvider');
+  return ctx;
+}
+```
+
+
+================================================================================
+FOLDER: features
+================================================================================
+
+
+================================================================================
+FOLDER: hooks
+================================================================================
+
+
+// File: src/hooks/useAnalytics.js
+```js
+import { useState, useEffect, useCallback } from 'react';
+import {
+  fetchAnalyticsSummary,
+  fetchPopulationByAgeGroup,
+  fetchGenderDistribution,
+  fetchHouseholdsPerPurok,
+  fetchActiveVsInactive,
+  fetchNewResidentsPerYear,
+  fetchResidentsTransferredOut,
+  fetchPopulationGrowth,
+  fetchEidRenewalStats,
+} from '../services/analyticsService';
+
+export function useAnalytics() {
+  const [data, setData] = useState({
+    summary: null,
+    populationByAge: [],
+    genderDistribution: [],
+    householdsPerPurok: [],
+    activeVsInactive: [],
+    newResidentsPerYear: [],
+    residentsTransferredOut: [],
+    populationGrowth: [],
+    eidRenewalStats: [],
+  });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const load = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const [
+        summary,
+        populationByAge,
+        genderDistribution,
+        householdsPerPurok,
+        activeVsInactive,
+        newResidentsPerYear,
+        residentsTransferredOut,
+        populationGrowth,
+        eidRenewalStats,
+      ] = await Promise.all([
+        fetchAnalyticsSummary().catch(() => null),
+        fetchPopulationByAgeGroup().catch(() => []),
+        fetchGenderDistribution().catch(() => []),
+        fetchHouseholdsPerPurok().catch(() => []),
+        fetchActiveVsInactive().catch(() => []),
+        fetchNewResidentsPerYear().catch(() => []),
+        fetchResidentsTransferredOut().catch(() => []),
+        fetchPopulationGrowth().catch(() => []),
+        fetchEidRenewalStats().catch(() => []),
+      ]);
+
+      setData({
+        summary,
+        populationByAge,
+        genderDistribution,
+        householdsPerPurok,
+        activeVsInactive,
+        newResidentsPerYear,
+        residentsTransferredOut,
+        populationGrowth,
+        eidRenewalStats,
+      });
+    } catch (err) {
+      setError(err.message ?? 'Failed to load analytics data.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  return { data, loading, error, reload: load };
+}
+```
+
+
+// File: src/hooks/useClickOutside.js
+```js
+import { useEffect } from 'react';
+
+/** Calls handler when a click/mousedown occurs outside of ref. */
+export function useClickOutside(ref, handler) {
+  useEffect(() => {
+    function onMouseDown(e) {
+      if (ref.current && !ref.current.contains(e.target)) handler();
+    }
+    document.addEventListener('mousedown', onMouseDown);
+    return () => document.removeEventListener('mousedown', onMouseDown);
+  }, [ref, handler]);
+}
+```
+
+
+// File: src/index.css
+```css
+@import "tailwindcss";
+```
+
+
+================================================================================
+FOLDER: layout
+================================================================================
+
+
+// File: src/layout/Footer.jsx
+```jsx
+import { Link } from 'react-router-dom';
+
+export default function Footer() {
+  return (
+    <footer className="bg-gradient-to-r from-[#000000] via-[#003A01] to-[#005F02] flex flex-col sm:flex-row justify-between items-center w-full py-6 sm:py-8 text-white gap-3 sm:gap-0 px-6 sm:px-12">
+      <div>
+        <p className="text-sm text-center sm:text-left">
+          © {new Date().getFullYear()} BarangayLink. All rights reserved.
+        </p>
+      </div>
+      <div className="flex justify-center gap-6">
+        <Link to="/privacy" className="text-sm hover:underline transition-all">Privacy</Link>
+        <Link to="/terms" className="text-sm hover:underline transition-all">Terms</Link>
+        <Link to="/contact" className="text-sm hover:underline transition-all">Contact Us</Link>
+      </div>
+    </footer>
+  );
+}
+```
+
+
+// File: src/layout/index.jsx
+```jsx
+// Layout Components Barrel Export
+export { default as NavBar } from './NavBar';
+export { default as Footer } from './Footer';
+
+```
+
+
+// File: src/layout/NavBar.jsx
+```jsx
+import { Link, useLocation } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { Logo } from '../shared';
+import { useAuth } from '../core/AuthContext';
+
+export default function NavBar() {
+  const [isScrolled, setIsScrolled] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const location = useLocation();
+  const { isAuthenticated, isLoading, getDashboardPath } = useAuth();
+
+  const isLandingPage = location.pathname === '/' || location.pathname === '/home';
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setIsScrolled(window.scrollY > 60);
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // Lock body scroll when mobile menu is open
+  useEffect(() => {
+    document.body.style.overflow = menuOpen ? 'hidden' : '';
+    return () => { document.body.style.overflow = ''; };
+  }, [menuOpen]);
+
+  const handleSmoothScroll = (e, targetId) => {
+    e.preventDefault();
+    const element = document.getElementById(targetId);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth' });
+    }
+    setMenuOpen(false);
+  };
+
+  const handleHomeClick = (e) => {
+    if (isLandingPage) {
+      handleSmoothScroll(e, 'home');
+    } else {
+      setMenuOpen(false);
+    }
+  };
+
+  const navLinkClass = 'font-poppins font-semibold text-xl text-white hover:opacity-80 transition-all cursor-pointer';
+
+  return (
+    <>
+      <nav className={`fixed top-0 left-0 w-full z-50 transition-all duration-300 ${isScrolled ? 'bg-black/70 backdrop-blur-md shadow-lg' : 'bg-transparent'
+        }`}>
+        <div className="mx-4 md:mx-12 px-4 md:px-5 flex justify-between items-center h-20 md:h-28">
+          {/* Logo Section */}
+          <Logo variant="navbar" />
+
+          {/* Desktop Navigation Links */}
+          <div className="hidden md:flex gap-30">
+            {isLandingPage ? (
+              <a href="#home" onClick={handleHomeClick} className={navLinkClass}>HOME</a>
+            ) : (
+              <Link to="/" onClick={() => setMenuOpen(false)} className={navLinkClass}>HOME</Link>
+            )}
+            <Link
+              to="/#about"
+              onClick={(e) => isLandingPage ? handleSmoothScroll(e, 'about') : setMenuOpen(false)}
+              className={navLinkClass}
+            >
+              ABOUT US
+            </Link>
+            <Link
+              to="/#features"
+              onClick={(e) => isLandingPage ? handleSmoothScroll(e, 'features') : setMenuOpen(false)}
+              className={navLinkClass}
+            >
+              FEATURES
+            </Link>
+          </div>
+
+          {/* Desktop Auth Buttons */}
+          <div className="hidden md:flex gap-3 items-center">
+            <Link to="/login" className="font-poppins px-5 py-3 rounded font-semibold text-lg text-white transition-all">LOGIN</Link>
+            <Link to="/signup" className="font-poppins text-white bg-[#005F02] px-5 py-3 rounded-md font-semibold text-lg hover:bg-[#004A01] transition-colors">SIGN UP</Link>
+          </div>
+
+          {/* Hamburger Button (mobile only) */}
+          <button
+            className="md:hidden flex flex-col justify-center items-center w-10 h-10 gap-1.5 z-50 focus:outline-none"
+            onClick={() => setMenuOpen((prev) => !prev)}
+            aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+          >
+            <span className={`block h-0.5 w-7 bg-white rounded transition-all duration-300 ${menuOpen ? 'rotate-45 translate-y-2' : ''}`} />
+            <span className={`block h-0.5 w-7 bg-white rounded transition-all duration-300 ${menuOpen ? 'opacity-0' : ''}`} />
+            <span className={`block h-0.5 w-7 bg-white rounded transition-all duration-300 ${menuOpen ? '-rotate-45 -translate-y-2' : ''}`} />
+          </button>
+
+          {/* Desktop border line */}
+          <div className={`absolute bottom-0 left-30 right-30 border-t transition-all hidden md:block ${isScrolled ? 'border-gray-200 opacity-0' : 'border-white opacity-50'
+            }`}></div>
+        </div>
+      </nav>
+
+      {/* Mobile Menu Overlay */}
+      <div
+        className={`fixed inset-0 z-40 bg-black/60 backdrop-blur-sm transition-opacity duration-300 md:hidden ${menuOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+          }`}
+        onClick={() => setMenuOpen(false)}
+      />
+
+      {/* Mobile Slide-in Drawer */}
+      <div className={`fixed top-0 right-0 h-full w-72 z-50 bg-gray-950/95 backdrop-blur-md flex flex-col pt-28 pb-10 px-8 gap-8 transition-transform duration-300 ease-in-out md:hidden ${menuOpen ? 'translate-x-0' : 'translate-x-full'
+        }`}>
+        {/* Mobile Nav Links */}
+        <nav className="flex flex-col gap-6 border-b border-white/20 pb-8">
+          {isLandingPage ? (
+            <a href="#home" onClick={handleHomeClick} className="font-poppins font-semibold text-xl text-white hover:opacity-70 transition-all">HOME</a>
+          ) : (
+            <Link to="/" onClick={() => setMenuOpen(false)} className="font-poppins font-semibold text-xl text-white hover:opacity-70 transition-all">HOME</Link>
+          )}
+          <Link
+            to="/#about"
+            onClick={(e) => isLandingPage ? handleSmoothScroll(e, 'about') : setMenuOpen(false)}
+            className="font-poppins font-semibold text-xl text-white hover:opacity-70 transition-all"
+          >
+            ABOUT US
+          </Link>
+          <Link
+            to="/#features"
+            onClick={(e) => isLandingPage ? handleSmoothScroll(e, 'features') : setMenuOpen(false)}
+            className="font-poppins font-semibold text-xl text-white hover:opacity-70 transition-all"
+          >
+            FEATURES
+          </Link>
+        </nav>
+
+        {/* Mobile Auth Buttons */}
+        <div className="flex flex-col gap-4">
+          <Link
+            to="/login"
+            onClick={() => setMenuOpen(false)}
+            className="font-poppins text-center border border-white/40 text-white px-5 py-3 rounded-md font-semibold text-lg hover:bg-white/10 transition-colors"
+          >
+            LOGIN
+          </Link>
+          <Link
+            to="/signup"
+            onClick={() => setMenuOpen(false)}
+            className="font-poppins text-center text-white bg-[#005F02] px-5 py-3 rounded-md font-semibold text-lg hover:bg-[#004A01] transition-colors"
+          >
+            SIGN UP
+          </Link>
+        </div>
+      </div>
+    </>
+  );
+}
+```
+
+
+// File: src/main.jsx
+```jsx
+import { StrictMode } from 'react'
+import { createRoot } from 'react-dom/client'
+import './index.css'
+import './themes/global.css';
+import App from './App.jsx'
+
+createRoot(document.getElementById('root')).render(
+  <StrictMode>
+    <App />
+  </StrictMode>,
+)
+
+```
+
+
+================================================================================
+FOLDER: routes
+================================================================================
+
+
+// File: src/routes/AcceptInvitationRoute.jsx
+```jsx
+import { Navigate } from 'react-router-dom';
+import { useAuth } from '../core/AuthContext';
+
+/**
+ * Wrapper for /accept-invitation.
+ *
+ * An invited user has a live Supabase session (auto-signed-in via magic link)
+ * but their users_tbl row is still is_active=false, so fetchUserRole signs
+ * them right back out. We detect invited users by checking
+ * user_metadata.role on the session object — no extra async fetch needed.
+ *
+ * - Invited user  → render AcceptInvitation
+ * - Normal authed → redirect to their dashboard
+ * - No session    → render AcceptInvitation (it will show INVALID_LINK)
+ *
+ * BUG FIX: Returns a spinner instead of null during loading.
+ */
+export default function AcceptInvitationRoute({ children }) {
+  const { isAuthenticated, isLoading, session, getDashboardPath } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-[#f7faf7] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-10 h-10 border-4 border-[#005F02] border-t-transparent rounded-full animate-spin" />
+          <p className="text-sm text-gray-500">Verifying invitation…</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (isAuthenticated) {
+    // Check if this is an invited user (they have role in user_metadata but
+    // haven't completed setup yet, so isAuthenticated=true but no profile row)
+    const isInvitedUser = !!session?.user?.user_metadata?.role;
+    if (!isInvitedUser) return <Navigate to={getDashboardPath()} replace />;
+  }
+
+  return children;
+}
+```
+
+
+// File: src/routes/AppRoutes.jsx
+```jsx
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { LandingPage, Privacy, Terms, Contact } from '../features/landing';
+import { ScrollToTop } from '../shared';
+import { Login, SignUp, ForgotPassword, ResetPassword, AcceptInvitation } from '../features/auth';
+import {
+  Dashboard,
+  Analytics,
+  Residents,
+  Households,
+  UserManagement,
+  Verification,
+  Eid,
+} from '../features/dashboard';
+import ProtectedRoute from './ProtectedRoute';
+import GuestRoute from './GuestRoute';
+import AcceptInvitationRoute from './AcceptInvitationRoute';
+import { ROLES } from '../core/AuthContext';
+
+function ComingSoon({ page }) {
+  return (
+    <div className="min-h-screen flex bg-[#F3F7F3]">
+      <main className="flex-1 flex items-center justify-center">
+        <div className="text-center text-gray-500">
+          <p className="text-2xl font-semibold mb-2">{page}</p>
+          <p className="text-sm">This page is coming soon.</p>
+        </div>
+      </main>
+    </div>
+  );
+}
+
+export default function AppRoutes() {
+  return (
+    <BrowserRouter>
+      <ScrollToTop />
+      <Routes>
+        {/* Public */}
+        <Route path="/"         element={<LandingPage />} />
+        <Route path="/home"     element={<LandingPage />} />
+        <Route path="/privacy"  element={<Privacy />} />
+        <Route path="/terms"    element={<Terms />} />
+        <Route path="/contact"  element={<Contact />} />
+
+        {/* Auth */}
+        <Route path="/login"               element={<GuestRoute><Login /></GuestRoute>} />
+        <Route path="/signup"              element={<GuestRoute><SignUp /></GuestRoute>} />
+        <Route path="/forgot-password"     element={<GuestRoute><ForgotPassword /></GuestRoute>} />
+        <Route path="/reset-password"      element={<ResetPassword />} />
+        <Route path="/accept-invitation"   element={<AcceptInvitationRoute><AcceptInvitation /></AcceptInvitationRoute>} />
+
+        {/* Resident */}
+        <Route path="/resident/dashboard" element={<ProtectedRoute allowedRoles={[ROLES.RESIDENT]}><Dashboard /></ProtectedRoute>} />
+        <Route path="/resident/eid"       element={<ProtectedRoute allowedRoles={[ROLES.RESIDENT]}><Eid /></ProtectedRoute>} />
+        <Route path="/resident/profile"   element={<ProtectedRoute allowedRoles={[ROLES.RESIDENT]}><ComingSoon page="My Profile" /></ProtectedRoute>} />
+
+        {/* Staff */}
+        <Route path="/staff/dashboard"    element={<ProtectedRoute allowedRoles={[ROLES.STAFF]}><Dashboard /></ProtectedRoute>} />
+        <Route path="/staff/analytics"    element={<ProtectedRoute allowedRoles={[ROLES.STAFF]}><Analytics /></ProtectedRoute>} />
+        <Route path="/staff/residents"    element={<ProtectedRoute allowedRoles={[ROLES.STAFF]}><Residents /></ProtectedRoute>} />
+        <Route path="/staff/households"   element={<ProtectedRoute allowedRoles={[ROLES.STAFF]}><Households /></ProtectedRoute>} />
+        <Route path="/staff/eid"          element={<ProtectedRoute allowedRoles={[ROLES.STAFF]}><Eid /></ProtectedRoute>} />
+        <Route path="/staff/verification" element={<ProtectedRoute allowedRoles={[ROLES.STAFF]}><Verification /></ProtectedRoute>} />
+        <Route path="/staff/profile"      element={<ProtectedRoute allowedRoles={[ROLES.STAFF]}><ComingSoon page="Profile" /></ProtectedRoute>} />
+
+        {/* Admin (Superadmin) */}
+        <Route path="/admin/dashboard"    element={<ProtectedRoute allowedRoles={[ROLES.SUPERADMIN]}><Dashboard /></ProtectedRoute>} />
+        <Route path="/admin/analytics"    element={<ProtectedRoute allowedRoles={[ROLES.SUPERADMIN]}><Analytics /></ProtectedRoute>} />
+        <Route path="/admin/residents"    element={<ProtectedRoute allowedRoles={[ROLES.SUPERADMIN]}><Residents /></ProtectedRoute>} />
+        <Route path="/admin/households"   element={<ProtectedRoute allowedRoles={[ROLES.SUPERADMIN]}><Households /></ProtectedRoute>} />
+        <Route path="/admin/eid"          element={<ProtectedRoute allowedRoles={[ROLES.SUPERADMIN]}><Eid /></ProtectedRoute>} />
+        <Route path="/admin/verification" element={<ProtectedRoute allowedRoles={[ROLES.SUPERADMIN]}><Verification /></ProtectedRoute>} />
+        <Route path="/admin/users"        element={<ProtectedRoute allowedRoles={[ROLES.SUPERADMIN]}><UserManagement /></ProtectedRoute>} />
+        <Route path="/admin/profile"      element={<ProtectedRoute allowedRoles={[ROLES.SUPERADMIN]}><ComingSoon page="Profile" /></ProtectedRoute>} />
+
+        {/* Fallback */}
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </BrowserRouter>
+  );
+}
+```
+
+
+// File: src/routes/GuestRoute.jsx
+```jsx
+import { Navigate } from 'react-router-dom';
+import { useAuth } from '../core/AuthContext';
+
+/**
+ * Blocks authenticated users from guest-only pages (login, signup, etc.)
+ * and redirects them to their dashboard.
+ *
+ * BUG FIX: Previously returned null while loading, which made the auth
+ * pages appear completely blank for the duration of the session check.
+ * Now shows a full-screen loader to give user feedback.
+ */
+export default function GuestRoute({ children }) {
+  const { isAuthenticated, isLoading, getDashboardPath } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-[#f7faf7] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-10 h-10 border-4 border-[#005F02] border-t-transparent rounded-full animate-spin" />
+          <p className="text-sm text-gray-500">Loading…</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (isAuthenticated) {
+    return <Navigate to={getDashboardPath()} replace />;
+  }
+
+  return children;
+}
+```
+
+
+// File: src/routes/ProtectedRoute.jsx
+```jsx
+import { Navigate } from 'react-router-dom';
+import { useAuth } from '../core/AuthContext';
+
+/**
+ * Guards a route by auth state and optionally by role.
+ * - Loading     → full-screen spinner (was null — caused blank flash)
+ * - Unauthenticated → /login
+ * - Wrong role  → user's own dashboard
+ */
+export default function ProtectedRoute({ children, allowedRoles = [] }) {
+  const { isAuthenticated, isLoading, userRole, getDashboardPath } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-[#F3F7F3] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-10 h-10 border-4 border-[#005F02] border-t-transparent rounded-full animate-spin" />
+          <p className="text-sm text-gray-500">Loading…</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+
+  if (allowedRoles.length > 0 && !allowedRoles.includes(userRole)) {
+    return <Navigate to={getDashboardPath()} replace />;
+  }
+
+  return children;
+}
+```
+
+
+================================================================================
+FOLDER: services
+================================================================================
+
+
+// File: src/services/analyticsService.js
+```js
+import { supabase } from '../core/supabase';
+
+// ─── Summary Cards ────────────────────────────────────────────────────────────
+
+export async function fetchAnalyticsSummary() {
+  const { data, error } = await supabase
+    .from('v_analytics_summary')
+    .select('*')
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+// ─── Demographic ──────────────────────────────────────────────────────────────
+
+export async function fetchPopulationByAgeGroup() {
+  const { data, error } = await supabase
+    .from('v_population_by_age_group')
+    .select('age_group, count');
+
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function fetchGenderDistribution() {
+  const { data, error } = await supabase
+    .from('v_gender_distribution')
+    .select('gender, count, percentage');
+
+  if (error) throw error;
+  return data ?? [];
+}
+
+// ─── Household ────────────────────────────────────────────────────────────────
+
+export async function fetchHouseholdsPerPurok() {
+  const { data, error } = await supabase
+    .from('v_households_per_purok')
+    .select('purok_name, household_count, resident_count');
+
+  if (error) throw error;
+  return data ?? [];
+}
+
+// ─── Resident Trends ─────────────────────────────────────────────────────────
+
+export async function fetchActiveVsInactive() {
+  const { data, error } = await supabase
+    .from('v_active_vs_inactive')
+    .select('status, count');
+
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function fetchNewResidentsPerYear() {
+  const { data, error } = await supabase
+    .from('v_new_residents_per_year')
+    .select('year, count');
+
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function fetchResidentsTransferredOut() {
+  const { data, error } = await supabase
+    .from('v_residents_transferred_out')
+    .select('year, count');
+
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function fetchPopulationGrowth() {
+  const { data, error } = await supabase
+    .from('v_population_growth')
+    .select('year, new_residents, cumulative_total');
+
+  if (error) throw error;
+  return data ?? [];
+}
+
+// ─── eID Renewals ─────────────────────────────────────────────────────────────
+
+export async function fetchEidRenewalStats() {
+  const { data, error } = await supabase
+    .from('v_eid_renewal_stats')
+    .select('month, renewals');
+
+  if (error) throw error;
+  return data ?? [];
+}
+```
+
+
+// File: src/services/auditService.js
+```js
+/**
+ * auditService.js
+ * Writes to audit_logs_tbl.  
+ * All authenticated users can INSERT (RLS policy: al_insert_authenticated).
+ */
+import { supabase } from '../core/supabase';
+
+/**
+ * Log an action to audit_logs_tbl.
+ * Non-blocking — callers should not await this if they don't want to delay UX.
+ *
+ * @param {object} opts
+ * @param {string} opts.actorId     - users_tbl.id of the performing user
+ * @param {string} opts.action      - audit_action_enum value
+ * @param {string} opts.targetTable - e.g. 'residents_tbl'
+ * @param {string} [opts.targetId]  - PK of the affected row
+ * @param {object} [opts.oldValues]
+ * @param {object} [opts.newValues]
+ * @param {string} [opts.description] - Human-readable summary
+ */
+export async function logAudit({
+  actorId,
+  action,
+  targetTable,
+  targetId,
+  oldValues,
+  newValues,
+  description,
+}) {
+  try {
+    await supabase.from('audit_logs_tbl').insert({
+      actor_id: actorId ?? null,
+      action,
+      target_table: targetTable ?? null,
+      target_id: targetId ?? null,
+      old_values: oldValues ?? null,
+      new_values: newValues ?? null,
+      description: description ?? null,
+    });
+  } catch (err) {
+    // Silently swallow — audit failures must not break user flows
+    if (import.meta.env.DEV) {
+      console.warn('[auditService] Failed to write audit log:', err);
+    }
+  }
+}
+```
+
+
+// File: src/services/householdsService.js
+```js
+/**
+ * Abstracted Supabase queries for households_tbl and household_members_tbl.
+ */
+import { supabase } from '../core/supabase';
+
+const LIST_COLUMNS = `
+  id, household_no, purok_id, house_no, street, barangay, city, province,
+  ownership_type, structure_type, remarks,
+  is_active, is_archived,
+  created_at, updated_at,
+  puroks_tbl ( id, name )
+`;
+
+const MEMBERS_COLUMNS = `
+  id, household_id, resident_id, role, is_head, joined_at,
+  residents_tbl ( id, first_name, middle_name, last_name, suffix, gender, contact_number )
+`;
+
+// ── Households ─────────────────────────────────────────────────────────────────
+
+/**
+ * Fetch all active, non-archived households.
+ */
+export async function fetchHouseholds() {
+  const { data, error } = await supabase
+    .from('households_tbl')
+    .select(LIST_COLUMNS)
+    .eq('is_archived', false)
+    .order('household_no', { ascending: true });
+
+  if (error) throw error;
+  return data ?? [];
+}
+
+/**
+ * Fetch a single household with its members.
+ */
+export async function fetchHouseholdById(id) {
+  const [householdResult, membersResult] = await Promise.all([
+    supabase
+      .from('households_tbl')
+      .select(LIST_COLUMNS)
+      .eq('id', id)
+      .single(),
+    supabase
+      .from('household_members_tbl')
+      .select(MEMBERS_COLUMNS)
+      .eq('household_id', id)
+      .order('is_head', { ascending: false }),
+  ]);
+
+  if (householdResult.error) throw householdResult.error;
+  if (membersResult.error) throw membersResult.error;
+
+  return {
+    ...householdResult.data,
+    members: membersResult.data ?? [],
+  };
+}
+
+/**
+ * Create a new household.
+ * household_no is auto-generated by DB trigger if omitted.
+ */
+export async function createHousehold(formData, actorUserId) {
+  const payload = buildHouseholdPayload(formData);
+  payload.created_by = actorUserId ?? null;
+  payload.updated_by = actorUserId ?? null;
+
+  const { data, error } = await supabase
+    .from('households_tbl')
+    .insert(payload)
+    .select('id, household_no')
+    .single();
+
+  if (error) throw error;
+
+  // Insert members if provided
+  if (formData.members?.length) {
+    await upsertMembers(data.id, formData.members);
+  }
+
+  return data;
+}
+
+/**
+ * Update an existing household.
+ */
+export async function updateHousehold(id, formData, actorUserId) {
+  const payload = buildHouseholdPayload(formData);
+  payload.updated_by = actorUserId ?? null;
+  payload.updated_at = new Date().toISOString();
+
+  const { data, error } = await supabase
+    .from('households_tbl')
+    .update(payload)
+    .eq('id', id)
+    .select('id, household_no')
+    .single();
+
+  if (error) throw error;
+
+  // Replace members if provided
+  if (formData.members !== undefined) {
+    // Delete existing members and re-insert
+    await supabase
+      .from('household_members_tbl')
+      .delete()
+      .eq('household_id', id);
+
+    if (formData.members.length) {
+      await upsertMembers(id, formData.members);
+    }
+  }
+
+  return data;
+}
+
+/**
+ * Soft-archive a household.
+ */
+export async function archiveHousehold(id, actorUserId) {
+  const { error } = await supabase
+    .from('households_tbl')
+    .update({
+      is_archived: true,
+      is_active: false,
+      archived_at: new Date().toISOString(),
+      archived_by: actorUserId ?? null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', id);
+
+  if (error) throw error;
+}
+
+/**
+ * Hard-delete a household (cascades to household_members_tbl).
+ */
+export async function deleteHousehold(id) {
+  const { error } = await supabase
+    .from('households_tbl')
+    .delete()
+    .eq('id', id);
+
+  if (error) throw error;
+}
+
+// ── Household Members ──────────────────────────────────────────────────────────
+
+/**
+ * Fetch members of a household.
+ */
+export async function fetchHouseholdMembers(householdId) {
+  const { data, error } = await supabase
+    .from('household_members_tbl')
+    .select(MEMBERS_COLUMNS)
+    .eq('household_id', householdId)
+    .order('is_head', { ascending: false });
+
+  if (error) throw error;
+  return data ?? [];
+}
+
+/**
+ * Add a resident to a household.
+ */
+export async function addHouseholdMember(householdId, residentId, role = 'Other', isHead = false) {
+  const { error } = await supabase
+    .from('household_members_tbl')
+    .upsert({
+      household_id: householdId,
+      resident_id: residentId,
+      role,
+      is_head: isHead,
+    }, { onConflict: 'household_id,resident_id' });
+
+  if (error) throw error;
+}
+
+/**
+ * Remove a resident from a household.
+ */
+export async function removeHouseholdMember(householdId, residentId) {
+  const { error } = await supabase
+    .from('household_members_tbl')
+    .delete()
+    .eq('household_id', householdId)
+    .eq('resident_id', residentId);
+
+  if (error) throw error;
+}
+
+// ── Puroks ─────────────────────────────────────────────────────────────────────
+
+/**
+ * Fetch all active puroks for dropdowns.
+ */
+export async function fetchPuroks() {
+  const { data, error } = await supabase
+    .from('puroks_tbl')
+    .select('id, name, description')
+    .eq('is_active', true)
+    .order('name', { ascending: true });
+
+  if (error) throw error;
+  return data ?? [];
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
+
+function buildHouseholdPayload(d) {
+  return {
+    purok_id: d.purokId || null,
+    house_no: d.houseNo?.trim() || null,
+    street: d.street?.trim() || null,
+    barangay: d.barangay?.trim() || 'San Bartolome',
+    city: d.city?.trim() || 'Quezon City',
+    province: d.province?.trim() || 'Metro Manila',
+    zip_code: d.zipCode?.trim() || null,
+    ownership_type: d.ownershipType?.trim() || null,
+    structure_type: d.structureType?.trim() || null,
+    remarks: d.remarks?.trim() || null,
+    is_active: d.isActive ?? true,
+  };
+}
+
+async function upsertMembers(householdId, members) {
+  const rows = members.map((m) => ({
+    household_id: householdId,
+    resident_id: m.residentId,
+    role: m.role || 'Other',
+    is_head: m.isHead ?? false,
+    joined_at: m.joinedAt || null,
+  }));
+
+  const { error } = await supabase
+    .from('household_members_tbl')
+    .insert(rows);
+
+  if (error) throw error;
+}
+```
+
+
+// File: src/services/index.js
+```js
+export * from './residentsService';
+export * from './householdsService';
+export * from './analyticsService';
+export * from './qrverificationService';
+```
+
+
+// File: src/services/qrverificationService.js
+```js
+/**
+ * Abstracted Supabase queries for verification_logs_tbl.
+ * Uses the correct schema: residents_tbl column is `qr_code` (not `qr_code_data`).
+ * `qr_code_data` belongs to eid_tbl.
+ */
+import { supabase } from '../core/supabase';
+
+/**
+ * Look up a resident by their qr_code value.
+ * Returns full resident details needed for the Verification page display.
+ * Maps DB columns to the shape expected by the UI (full_name, address, sex, etc.)
+ */
+export async function verifyQrCode(code, verifiedByUserId = null, scanMethod = 'manual') {
+  // 1. Fetch resident
+  const { data: resident, error } = await supabase
+    .from('residents_tbl')
+    .select(
+      `id, first_name, middle_name, last_name, suffix,
+       gender, birthdate, contact_number, status,
+       house_no, street, barangay, city, province,
+       purok_id, photo_url, is_archived`
+    )
+    .eq('qr_code', code)
+    .eq('is_archived', false)
+    .maybeSingle();
+
+  if (error) throw error;
+
+  const isValid = !!resident && resident.status === 'Active';
+
+  // 2. Log the verification attempt (non-blocking — best-effort)
+  try {
+    await supabase.from('verification_logs_tbl').insert({
+      resident_id: resident?.id ?? null,
+      scanned_code: code,
+      scan_method: scanMethod,
+      verified_by: verifiedByUserId,
+      is_valid: isValid,
+      failure_reason: !resident
+        ? 'No resident found for this QR code'
+        : !isValid
+        ? `Resident status is ${resident.status}`
+        : null,
+    });
+  } catch {
+    // Silently ignore log insertion failures; don't block UX
+  }
+
+  if (!resident) return null;
+
+  // 3. Map DB columns → UI shape
+  const fullName = [
+    resident.last_name,
+    resident.first_name,
+    resident.middle_name,
+    resident.suffix,
+  ]
+    .filter(Boolean)
+    .join(', ');
+
+  const address = [
+    resident.house_no,
+    resident.street,
+    resident.barangay,
+    resident.city,
+    resident.province,
+  ]
+    .filter(Boolean)
+    .join(', ');
+
+  return {
+    id: resident.id,
+    full_name: fullName,
+    address,
+    contact_number: resident.contact_number ?? '—',
+    birthdate: resident.birthdate
+      ? new Date(resident.birthdate).toLocaleDateString('en-PH', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+        })
+      : '—',
+    sex: resident.gender ?? '—',
+    status: resident.status,
+    photo_url: resident.photo_url ?? null,
+  };
+}
+
+/**
+ * Fetch recent verification history for the sidebar.
+ */
+export async function fetchVerificationHistory(limit = 10) {
+  const { data, error } = await supabase
+    .from('verification_logs_tbl')
+    .select(
+      `id, scanned_code, scan_method, is_valid, failure_reason, created_at,
+       residents_tbl ( first_name, middle_name, last_name, suffix, status )`
+    )
+    .order('created_at', { ascending: false })
+    .limit(limit);
+
+  if (error) throw error;
+
+  return (data ?? []).map((log) => {
+    const r = log.residents_tbl;
+    const name = r
+      ? [r.last_name, r.first_name, r.middle_name, r.suffix].filter(Boolean).join(', ')
+      : log.scanned_code;
+    return {
+      id: log.id,
+      name,
+      status: r?.status ?? (log.is_valid ? 'Active' : 'Unknown'),
+      time: new Date(log.created_at).toLocaleTimeString('en-PH', {
+        hour: '2-digit',
+        minute: '2-digit',
+      }),
+      isValid: log.is_valid,
+    };
+  });
+}
+```
+
+
+// File: src/services/residentsService.js
+```js
+/**
+ * Abstracted Supabase queries for residents_tbl.
+ */
+import { supabase } from '../core/supabase';
+
+// ── Column sets ────────────────────────────────────────────────────────────────
+const LIST_COLUMNS = `
+  id, resident_no, first_name, middle_name, last_name, suffix,
+  gender, birthdate, contact_number, email, status, is_archived,
+  house_no, street, barangay, city, purok_id, household_id,
+  created_at, updated_at
+`;
+
+const DETAIL_COLUMNS = `
+  id, resident_no,
+  first_name, middle_name, last_name, suffix,
+  gender, birthdate, birthplace, civil_status, nationality, religion,
+  occupation, monthly_income,
+  is_voter, voter_id_no,
+  is_pwd, pwd_id_no,
+  is_solo_parent, is_4ps_beneficiary, is_senior_citizen,
+  educational_attainment, blood_type, photo_url,
+  contact_number, email,
+  household_id, purok_id, house_no, street, barangay, city, province, zip_code,
+  years_of_residency, is_renter,
+  philsys_id_no, sss_no, tin_no, philhealth_no, pagibig_no,
+  passport_no, drivers_license_no, postal_id_no,
+  emergency_contact_name, emergency_contact_relationship, emergency_contact_number,
+  qr_code, status, is_archived, archived_at,
+  created_at, updated_at
+`;
+
+// ── Read ───────────────────────────────────────────────────────────────────────
+
+/**
+ * Fetch all non-archived residents.
+ * Returns array sorted by last_name ASC.
+ */
+export async function fetchResidents() {
+  const { data, error } = await supabase
+    .from('residents_tbl')
+    .select(LIST_COLUMNS)
+    .eq('is_archived', false)
+    .order('last_name', { ascending: true });
+
+  if (error) throw error;
+  return data ?? [];
+}
+
+/**
+ * Fetch a single resident by id (full detail).
+ */
+export async function fetchResidentById(id) {
+  const { data, error } = await supabase
+    .from('residents_tbl')
+    .select(DETAIL_COLUMNS)
+    .eq('id', id)
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Lookup a resident by their unique qr_code value.
+ * Used by the Verification page.
+ */
+export async function fetchResidentByQrCode(qrCode) {
+  const { data, error } = await supabase
+    .from('residents_tbl')
+    .select(DETAIL_COLUMNS)
+    .eq('qr_code', qrCode)
+    .eq('is_archived', false)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data; // null if not found
+}
+
+// ── Write ──────────────────────────────────────────────────────────────────────
+
+/**
+ * Insert a new resident.
+ * resident_no is auto-generated by DB trigger if omitted.
+ * qr_code is auto-generated by DB trigger.
+ */
+export async function createResident(formData, actorUserId) {
+  const payload = buildPayload(formData);
+  payload.created_by = actorUserId ?? null;
+  payload.updated_by = actorUserId ?? null;
+
+  const { data, error } = await supabase
+    .from('residents_tbl')
+    .insert(payload)
+    .select('id, resident_no')
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Update an existing resident.
+ */
+export async function updateResident(id, formData, actorUserId) {
+  const payload = buildPayload(formData);
+  payload.updated_by = actorUserId ?? null;
+  payload.updated_at = new Date().toISOString();
+
+  const { data, error } = await supabase
+    .from('residents_tbl')
+    .update(payload)
+    .eq('id', id)
+    .select('id, resident_no')
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Soft-archive a resident (sets is_archived=true, status='Inactive').
+ */
+export async function archiveResident(id, actorUserId) {
+  const { error } = await supabase
+    .from('residents_tbl')
+    .update({
+      is_archived: true,
+      archived_at: new Date().toISOString(),
+      archived_by: actorUserId ?? null,
+      status: 'Inactive',
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', id);
+
+  if (error) throw error;
+}
+
+/**
+ * Hard-delete a resident (use only when fully intended).
+ * RLS enforces admin-only; front-end should still confirm.
+ */
+export async function deleteResident(id) {
+  const { error } = await supabase
+    .from('residents_tbl')
+    .delete()
+    .eq('id', id);
+
+  if (error) throw error;
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
+
+/**
+ * Maps form field names to exact DB column names.
+ * Prevents mass-assignment of unknown columns.
+ */
+function buildPayload(d) {
+  return {
+    // Personal
+    first_name: d.firstName?.trim() || null,
+    middle_name: d.middleName?.trim() || null,
+    last_name: d.lastName?.trim() || null,
+    suffix: d.suffix?.trim() || null,
+    gender: d.gender || null,
+    birthdate: d.birthdate || null,
+    birthplace: d.birthplace?.trim() || null,
+    civil_status: d.civilStatus || null,
+    nationality: d.nationality?.trim() || 'Filipino',
+    religion: d.religion?.trim() || null,
+    occupation: d.occupation?.trim() || null,
+    monthly_income: d.monthlyIncome ? parseFloat(d.monthlyIncome) : null,
+    // Flags
+    is_voter: d.isVoter ?? false,
+    voter_id_no: d.voterIdNo?.trim() || null,
+    is_pwd: d.isPwd ?? false,
+    pwd_id_no: d.pwdIdNo?.trim() || null,
+    is_solo_parent: d.isSoloParent ?? false,
+    is_4ps_beneficiary: d.is4psBeneficiary ?? false,
+    is_senior_citizen: d.isSeniorCitizen ?? false,
+    educational_attainment: d.educationalAttainment?.trim() || null,
+    blood_type: d.bloodType?.trim() || null,
+    photo_url: d.photoUrl || null,
+    // Contact
+    contact_number: d.contactNumber?.trim() || null,
+    email: d.email?.trim() || null,
+    // Address
+    household_id: d.householdId || null,
+    purok_id: d.purokId || null,
+    house_no: d.houseNo?.trim() || null,
+    street: d.street?.trim() || null,
+    barangay: d.barangay?.trim() || 'San Bartolome',
+    city: d.city?.trim() || 'Quezon City',
+    province: d.province?.trim() || 'Metro Manila',
+    zip_code: d.zipCode?.trim() || null,
+    years_of_residency: d.yearsOfResidency ? parseInt(d.yearsOfResidency, 10) : null,
+    is_renter: d.isRenter ?? false,
+    // IDs
+    philsys_id_no: d.philsysIdNo?.trim() || null,
+    sss_no: d.sssNo?.trim() || null,
+    tin_no: d.tinNo?.trim() || null,
+    philhealth_no: d.philhealthNo?.trim() || null,
+    pagibig_no: d.pagibigNo?.trim() || null,
+    passport_no: d.passportNo?.trim() || null,
+    drivers_license_no: d.driversLicenseNo?.trim() || null,
+    postal_id_no: d.postalIdNo?.trim() || null,
+    // Emergency
+    emergency_contact_name: d.emergencyContactName?.trim() || null,
+    emergency_contact_relationship: d.emergencyContactRelationship?.trim() || null,
+    emergency_contact_number: d.emergencyContactNumber?.trim() || null,
+    // Status
+    status: d.status || 'Active',
+  };
+}
+```
+
+
+================================================================================
+FOLDER: shared
+================================================================================
+
+
+// File: src/shared/ActionDropdown.jsx
+```jsx
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
+import { HiEllipsisVertical } from 'react-icons/hi2';
+
+/**
+ * ActionDropdown with Portal support to prevent table overflow clipping.
+ * Fixed: mousedown listener is now properly cleaned up in the return fn.
+ */
+export default function ActionDropdown({ actions = [], trigger, align = 'right' }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [menuStyles, setMenuStyles] = useState({});
+  const containerRef = useRef(null);
+  const menuRef = useRef(null);
+
+  const updatePosition = useCallback(() => {
+    if (!containerRef.current) return;
+
+    const rect = containerRef.current.getBoundingClientRect();
+    const dropdownHeight = actions.length * 42 + 20;
+    const spaceBelow = window.innerHeight - rect.bottom - 20;
+    const spaceAbove = rect.top - 20;
+    const shouldOpenUpwards = spaceBelow < dropdownHeight && spaceAbove > spaceBelow;
+
+    const styles = {
+      position: 'fixed',
+      left: align === 'right' ? `${rect.right}px` : `${rect.left}px`,
+      transform: align === 'right' ? 'translateX(-100%)' : 'none',
+      zIndex: 9999,
+    };
+
+    if (shouldOpenUpwards) {
+      styles.top = `${rect.top - 8}px`;
+      styles.transform += ' translateY(-100%)';
+    } else {
+      styles.top = `${rect.bottom + 8}px`;
+    }
+
+    setMenuStyles(styles);
+  }, [actions.length, align]);
+
+  const toggle = (e) => {
+    e.stopPropagation();
+    if (!isOpen) updatePosition();
+    setIsOpen((prev) => !prev);
+  };
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleMouseDown = (e) => {
+      if (
+        menuRef.current && !menuRef.current.contains(e.target) &&
+        containerRef.current && !containerRef.current.contains(e.target)
+      ) {
+        setIsOpen(false);
+      }
+    };
+
+    const handleScrollResize = () => updatePosition();
+
+    document.addEventListener('mousedown', handleMouseDown);
+    window.addEventListener('scroll', handleScrollResize, true);
+    window.addEventListener('resize', handleScrollResize);
+
+    return () => {
+      document.removeEventListener('mousedown', handleMouseDown);
+      window.removeEventListener('scroll', handleScrollResize, true);
+      window.removeEventListener('resize', handleScrollResize);
+    };
+  }, [isOpen, updatePosition]);
+
+  return (
+    <div className="relative inline-block leading-none" ref={containerRef}>
+      {trigger ? (
+        <div onClick={toggle} className="cursor-pointer">
+          {trigger}
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={toggle}
+          className={`p-1.5 rounded-lg transition-all duration-200 hover:bg-emerald-50 text-gray-500 hover:text-emerald-700 active:scale-95 ${
+            isOpen ? 'bg-emerald-50 text-emerald-700 ring-2 ring-emerald-100' : ''
+          }`}
+          aria-haspopup="true"
+          aria-expanded={isOpen}
+          aria-label="Actions"
+        >
+          <HiEllipsisVertical className="w-5 h-5" />
+        </button>
+      )}
+
+      {isOpen && createPortal(
+        <div
+          ref={menuRef}
+          style={menuStyles}
+          className="w-50 bg-white rounded-xl border border-gray-100 shadow-[0_10px_40px_-10px_rgba(0,0,0,0.15)] overflow-hidden"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {actions.map((action, idx) => (
+            <button
+              key={idx}
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                action.onClick();
+                setIsOpen(false);
+              }}
+              className={`flex items-center gap-3 w-full px-4 py-2.5 text-sm transition-colors group ${
+                action.className || 'text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              {action.icon && (
+                <action.icon
+                  className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 ${
+                    action.className?.includes('text-red')
+                      ? 'text-red-500'
+                      : 'text-gray-400 group-hover:text-emerald-600'
+                  }`}
+                />
+              )}
+              <span className="font-medium">{action.label}</span>
+            </button>
+          ))}
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+}
+```
+
+
+// File: src/shared/ArchiveModal.jsx
+```jsx
+export default function ArchiveModal({ isOpen, title = 'Archive', message = 'This record will be archived and removed from the active list.', onConfirm, onCancel }) {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg shadow-lg max-w-md w-full mx-4">
+        <div className="flex items-center justify-between p-3 bg-gray-100 rounded-t-lg border-b border-gray-200">
+          <h2 className="text-xl font-semibold text-gray-900">Archive {title}</h2>
+          <button
+            onClick={onCancel}
+            className="text-gray-500 hover:text-gray-700 transition-colors"
+          >
+            ✕
+          </button>
+        </div>
+        <div className="p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">Are you sure you want to archive this {title.toLowerCase()}?</h3>
+          <p className="text-gray-600 text-sm mb-7">
+            {message}
+          </p>
+          <div className="flex gap-3">
+            <button
+              onClick={onConfirm}
+              className="flex-1 px-10 py-2 rounded-lg text-sm font-medium border border-gray-300 text-gray-700 bg-white hover:bg-gray-50 transition-colors"
+            >
+              Archive
+            </button>
+            <button
+              onClick={onCancel}
+              className="flex-1 px-10 py-2 rounded-lg text-sm font-medium bg-red-600 text-white hover:bg-red-700 transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+```
+
+
+// File: src/shared/AuthLayout.jsx
+```jsx
+/**
+ * Split layout for Login and SignUp pages.
+ *
+ * BUGS FIXED:
+ * 1. `top-110`  — not a valid Tailwind class, caused the entire form to
+ *    be positioned off-screen (this was the PRIMARY reason auth pages
+ *    appeared blank/unreachable).
+ * 2. `max-w-`   — incomplete Tailwind class (missing the size value),
+ *    caused a CSS parsing warning and broke the container width.
+ * 3. `bg-linear-to-b` — not a valid Tailwind v3 class; correct class is
+ *    `bg-gradient-to-b`.
+ * 4. Layout now uses overflow-y-auto so tall forms (SignUp multi-step)
+ *    scroll properly on small screens instead of being clipped.
+ */
+export default function AuthLayout({ header, children }) {
+  return (
+    <div className="min-h-screen relative">
+      {/* Top section: background image */}
+      <div
+        className="fixed inset-0 bg-[url('/src/assets/images/landing-bg.png')] bg-cover bg-center"
+        aria-hidden="true"
+      >
+        <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-emerald-950/75 to-emerald-950/90" />
+      </div>
+
+      {/* Scrollable content layer */}
+      <div className="relative z-10 min-h-screen flex flex-col items-center justify-start px-4 py-12 overflow-y-auto">
+        {/* Logo / header */}
+        <div className="flex flex-col items-center mb-6 w-full max-w-lg">
+          {header}
+        </div>
+
+        {/* Form card */}
+        <div className="w-full max-w-lg">
+          {children}
+        </div>
+
+        {/* Bottom padding so content isn't flush against bottom on short screens */}
+        <div className="h-8 flex-shrink-0" />
+      </div>
+    </div>
+  );
+}
+```
+
+
+// File: src/shared/Background.jsx
+```jsx
+export default function Background({ children }) {
+  return (
+    <section className="relative w-full bg-[url('/src/assets/images/landing-bg.png')] bg-cover bg-center flex items-center justify-center min-h-screen">
+      {/* Overlay */}
+      <div className="absolute inset-0 bg-linear-to-b from-black/40 via-emerald-950/70 to-emerald-980/80"></div>
+
+      {/* Content */}
+      <div className="relative z-10 w-full mx-4 sm:mx-8 md:mx-16 lg:mx-30 px-4 md:px-12 mt-10">
+        {children}
+      </div>
+    </section>
+  );
+}
+
+```
+
+
+// File: src/shared/ContentCard.jsx
+```jsx
+import Checklist from '../assets/icons/check-list.svg';
+
+/**
+ * Reusable content card with optional title, intro paragraph, and checkmark list.
+ * Matches the Terms of Service / policy card design.
+ *
+ * @param {string} title - Card heading (green, bold)
+ * @param {string} [intro] - Optional introductory paragraph before list items
+ * @param {string[]} [items] - Optional array of strings rendered as a checklist
+ * @param {React.ReactNode} [children] - Custom content; use instead of or alongside intro/items
+ * @param {string} [className] - Extra class names for the card wrapper
+ *
+ * FIX: text-lb replaced with text-base (text-lb is not a valid Tailwind class)
+ */
+export default function ContentCard({
+  title,
+  intro,
+  items = [],
+  children,
+  className = '',
+}) {
+  return (
+    <article className={`bg-white rounded-xl shadow-md p-5 md:p-6 ${className}`}>
+      {title && (
+        <h3 className="text-center text-base md:text-xl font-bold text-[#005F02] mb-6">
+          {title}
+        </h3>
+      )}
+
+      {/* Divider */}
+      {title && intro && (
+        <div
+          role="separator"
+          aria-hidden="true"
+          className="mx-5 md:-mx-6 border-t border-gray-300 my-3"
+        />
+      )}
+
+      {intro && (
+        <p className="text-black text-base leading-relaxed mb-4">
+          {intro}
+        </p>
+      )}
+
+      {items.length > 0 && (
+        <ul className="space-y-2 list-none p-0 m-0">
+          {items.map((item, i) => (
+            <li key={i} className="flex items-start gap-3">
+              <img
+                src={Checklist}
+                alt=""
+                className="w-5 h-5 mt-0.5 shrink-0"
+                aria-hidden
+              />
+              <span className="text-black text-base leading-relaxed">
+                {item}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {children}
+    </article>
+  );
+}
+```
+
+
+// File: src/shared/DeactiveModal.jsx
+```jsx
+import { useEffect, useRef } from 'react';
+
+export default function DeactiveModal({
+  isOpen,
+  title = 'Deactivate',
+  message = 'This record will be deactivated and marked as inactive.',
+  onConfirm,
+  onCancel,
+}) {
+  const cancelBtnRef = useRef(null);
+
+  useEffect(() => {
+    if (isOpen && cancelBtnRef.current) cancelBtnRef.current.focus();
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKey = (e) => { if (e.key === 'Escape') onCancel?.(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isOpen, onCancel]);
+
+  if (!isOpen) return null;
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="deactivate-modal-title"
+    >
+      <div className="bg-white rounded-lg shadow-lg max-w-md w-full mx-4">
+        <div className="flex items-center justify-between p-3 bg-gray-100 rounded-t-lg border-b border-gray-200">
+          <h2 id="deactivate-modal-title" className="text-xl font-semibold text-gray-900">
+            Deactivate {title}
+          </h2>
+          <button
+            type="button"
+            onClick={onCancel}
+            aria-label="Close"
+            className="text-gray-500 hover:text-gray-700 transition-colors"
+          >
+            ✕
+          </button>
+        </div>
+        <div className="p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">
+            Are you sure you want to deactivate this {title.toLowerCase()}?
+          </h3>
+          <p className="text-gray-600 text-sm mb-7">{message}</p>
+          <div className="flex gap-3">
+            <button
+              ref={cancelBtnRef}
+              type="button"
+              onClick={onCancel}
+              className="flex-1 px-10 py-2 rounded-lg text-sm font-medium border border-gray-300 text-gray-700 bg-white hover:bg-gray-50 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={onConfirm}
+              className="flex-1 px-10 py-2 rounded-lg text-sm font-medium bg-red-600 text-white hover:bg-red-700 transition-colors"
+            >
+              Deactivate
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+```
+
+
+// File: src/shared/DeleteModal.jsx
+```jsx
+export default function DeleteModal({ isOpen, title = 'Delete', message = 'This action cannot be undone. The record will be permanently deleted.', onConfirm, onCancel }) {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg shadow-lg max-w-md w-full mx-4">
+        <div className="flex items-center justify-between p-3 bg-gray-100 rounded-t-lg border-b border-gray-200">
+          <h2 className="text-xl font-semibold text-gray-900">Delete {title}</h2>
+          <button
+            onClick={onCancel}
+            className="text-gray-500 hover:text-gray-700 transition-colors"
+          >
+            ✕
+          </button>
+        </div>
+        <div className="p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">Are you sure you want to delete this {title.toLowerCase()}?</h3>
+          <p className="text-gray-600 text-sm mb-7">
+            {message}
+          </p>
+          <div className="flex gap-3">
+            <button
+              onClick={onCancel}
+              className="flex-1 px-10 py-2 rounded-lg text-sm font-medium border border-gray-300 text-gray-700 bg-white hover:bg-gray-50 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={onConfirm}
+              className="flex-1 px-10 py-2 rounded-lg text-sm font-medium bg-red-600 text-white hover:bg-red-700 transition-colors"
+            >
+              Delete
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+```
+
+
+// File: src/shared/FormSelect.jsx
+```jsx
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
+import { RiArrowDropDownLine } from 'react-icons/ri';
+
+/**
+ * Reusable select component with Portal support for correct z-index
+ * positioning inside modals and tables.
+ *
+ * @param {Component} props.icon        - Optional icon on the left
+ * @param {string}    props.placeholder - Placeholder text
+ * @param {string}    props.value       - Currently selected value
+ * @param {Array}     props.options     - Array of { value, label }
+ * @param {Function}  props.onChange    - Called with the selected value
+ * @param {string}    props.className   - Extra container classes
+ */
+export default function FormSelect({
+  icon: Icon,
+  placeholder = 'Select option',
+  value,
+  options = [],
+  onChange,
+  className = '',
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [menuStyles, setMenuStyles] = useState(null);
+  const containerRef = useRef(null);
+  const menuRef = useRef(null);
+
+  const selectedOption = options.find((opt) => opt.value === value);
+
+  const updatePosition = useCallback(() => {
+    if (!containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    if (rect.width === 0) return;
+
+    const dropdownHeight = Math.min(options.length * 42 + 10, 300);
+    const spaceBelow = window.innerHeight - rect.bottom - 10;
+    const spaceAbove = rect.top - 10;
+    const shouldOpenUpwards = spaceBelow < dropdownHeight && spaceAbove > spaceBelow;
+
+    const styles = {
+      position: 'fixed',
+      left: `${rect.left}px`,
+      width: `${rect.width}px`,
+      zIndex: 9999,
+    };
+
+    if (shouldOpenUpwards) {
+      styles.bottom = `${window.innerHeight - rect.top + 4}px`;
+    } else {
+      styles.top = `${rect.bottom + 4}px`;
+    }
+
+    setMenuStyles(styles);
+  }, [options.length]);
+
+  const toggle = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!isOpen) {
+      updatePosition();
+      setIsOpen(true);
+    } else {
+      setIsOpen(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleClickOutside = (e) => {
+      if (
+        menuRef.current && !menuRef.current.contains(e.target) &&
+        containerRef.current && !containerRef.current.contains(e.target)
+      ) {
+        setIsOpen(false);
+      }
+    };
+
+    const handleScrollResize = () => updatePosition();
+
+    document.addEventListener('mousedown', handleClickOutside);
+    window.addEventListener('scroll', handleScrollResize, true);
+    window.addEventListener('resize', handleScrollResize);
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      window.removeEventListener('scroll', handleScrollResize, true);
+      window.removeEventListener('resize', handleScrollResize);
+    };
+  }, [isOpen, updatePosition]);
+
+  return (
+    <div className={`relative ${className}`} ref={containerRef}>
+      <button
+        type="button"
+        onClick={toggle}
+        onMouseDown={(e) => e.stopPropagation()}
+        className="w-full flex items-center border border-gray-300 rounded-lg overflow-hidden bg-white text-base focus:outline-none focus:ring-2 focus:ring-[#005F02]/30 focus:border-[#005F02] transition-colors group"
+      >
+        {Icon && (
+          <div className="bg-gray-100 px-4 py-3 flex items-center justify-center border-r border-gray-300 text-[#005F02] group-focus-within:bg-emerald-50 transition-colors">
+            <Icon className="w-5 h-5" />
+          </div>
+        )}
+        <span className={`flex-1 text-left px-4 py-2.5 ${selectedOption ? 'text-gray-900' : 'text-gray-400'}`}>
+          {selectedOption ? selectedOption.label : placeholder}
+        </span>
+        <RiArrowDropDownLine
+          className={`w-7 h-7 text-gray-400 transition-transform mr-2 ${isOpen ? 'rotate-180' : ''}`}
+        />
+      </button>
+
+      {isOpen && menuStyles && createPortal(
+        <div
+          ref={menuRef}
+          style={menuStyles}
+          className="bg-white border border-gray-300 rounded-lg shadow-[0_10px_40px_-10px_rgba(0,0,0,0.2)] overflow-hidden"
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          <div className="max-h-60 overflow-y-auto py-1">
+            {options.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onChange?.(option.value);
+                  setIsOpen(false);
+                }}
+                className={`w-full text-left px-4 py-2.5 hover:bg-emerald-50/50 flex items-center justify-between transition-colors ${
+                  value === option.value
+                    ? 'bg-emerald-50 text-emerald-800 font-semibold'
+                    : 'text-gray-700'
+                }`}
+              >
+                <span>{option.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+}
+```
+
+
+// File: src/shared/index.jsx
+```jsx
+export { default as Background } from './Background';
+export { default as AuthLayout } from './AuthLayout';
+export { default as ContentCard } from './ContentCard';
+export { default as Logo } from './Logo';
+export { default as ScrollToTop } from './ScrollToTop';
+export { default as SortFilter } from './SortFilter';
+export { default as OrderFilter } from './OrderFilter';
+export { default as StatusFilter } from './StatusFilter';
+export { default as Pagination } from './Pagination';
+export { default as SearchBox } from './SearchBox';
+export { default as ArchiveModal } from './ArchiveModal';
+export { default as DeleteModal } from './DeleteModal';
+export { default as DeactiveModal } from './DeactiveModal';
+export { default as ActionDropdown } from './ActionDropdown';
+export { default as FormSelect } from './FormSelect';
+export { default as EIdProfile } from '../features/dashboard/components/eid/EIdProfile';
+```
+
+
+// File: src/shared/Logo.jsx
+```jsx
+import { Link } from 'react-router-dom';
+import logo from '../assets/images/logo.svg';
+
+/**
+ * 
+ * @param {'navbar' | 'auth' | 'dashboard'} variant - 'navbar' for NavBar (larger, tagline hidden on mobile), 'auth' for Login/SignUp (centered), 'dashboard' for sidebar/header
+ * @param {string} [className] 
+ */
+export default function Logo({ variant = 'auth', className = '' }) {
+  const isNavbar = variant === 'navbar';
+  const isDashboard = variant === 'dashboard';
+
+  return (
+    <Link
+      to="/"
+      className={
+        isNavbar
+          ? `flex items-center gap-3 font-bold hover:opacity-80 transition-opacity cursor-pointer text-white ${className}`
+          : isDashboard
+            ? `flex items-center gap-3 font-bold hover:opacity-80 transition-opacity cursor-pointer ${className}`
+            : `inline-flex items-center justify-center mb-6 hover:opacity-90 transition-opacity ${className}`
+      }
+      aria-label="BarangayLink Home"
+    >
+      <img
+        src={logo}
+        alt=""
+        className={isNavbar ? 'w-16 h-16' : isDashboard ? 'w-12 h-12' : 'h-12 md:h-14 w-auto'}
+        loading="lazy"
+      />
+      <div className={isNavbar || isDashboard ? 'flex flex-col gap-0.5' : ''}>
+        <p
+          className={
+            isNavbar
+              ? 'text-xl font-extrabold tracking-wider'
+              : isDashboard
+                ? 'text-xl font-extrabold tracking-wider text-[#005F02]'
+                : 'text-white font-bold text-xl md:text-2xl tracking-tight'
+          }
+        >
+          BARANGAYLINK
+        </p>
+        <p
+          className={
+            isNavbar
+              ? 'text-xs font-normal text-teal-100 tracking-wider hidden md:block'
+              : isDashboard
+                ? 'text-xs font-normal text-gray-500 tracking-wider'
+                : 'text-white/90 text-sm'
+          }
+        >
+          Resident and House Registry
+        </p>
+      </div>
+    </Link>
+  );
+}
+
+```
+
+
+// File: src/shared/OrderFilter.jsx
+```jsx
+import { useState, useRef, useCallback } from 'react';
+import { IoIosArrowDown } from 'react-icons/io';
+import { MdCheck } from 'react-icons/md';
+import { useClickOutside } from '../hooks/useClickOutside';
+import { getCategoryFromValue, getOrderFromValue, buildSortValue } from '../utils/sortUtils';
+
+const ORDER_OPTIONS = [
+  { value: 'asc',  label: 'Ascending' },
+  { value: 'desc', label: 'Descending' },
+];
+
+export default function OrderFilter({ value, onChange }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const ref = useRef(null);
+
+  useClickOutside(ref, useCallback(() => setIsOpen(false), []));
+
+  const handleOrderChange = (order) => {
+    onChange?.(buildSortValue(getCategoryFromValue(value), order));
+    setIsOpen(false);
+  };
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setIsOpen((o) => !o)}
+        className="inline-flex items-center text-gray-900 gap-2 px-4 py-2.5 rounded-lg text-base font-medium border border-gray-300 bg-white hover:bg-gray-50 justify-between shadow-sm transition-all"
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
+      >
+        <span>Order By</span>
+        <IoIosArrowDown
+          className={`w-4 h-4 shrink-0 transition-transform text-gray-500 ${isOpen ? 'rotate-180' : ''}`}
+          aria-hidden="true"
+        />
+      </button>
+      {isOpen && (
+        <div className="absolute top-full left-0 mt-1 py-1 w-full min-w-40 bg-white rounded-lg border border-gray-200 shadow-lg z-10" role="listbox">
+          {ORDER_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              role="option"
+              aria-selected={getOrderFromValue(value) === opt.value}
+              onClick={() => handleOrderChange(opt.value)}
+              className="flex items-center justify-between w-full text-left px-4 py-2 text-sm hover:bg-gray-100 rounded-md"
+            >
+              <span>{opt.label}</span>
+              {getOrderFromValue(value) === opt.value && (
+                <MdCheck className="w-4 h-4 text-green-600" aria-hidden="true" />
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+
+// File: src/shared/Pagination.jsx
+```jsx
+import { FiChevronLeft, FiChevronRight } from 'react-icons/fi';
+
+export default function Pagination({
+  currentPage = 1,
+  totalPages = 1,
+  totalEntries = 0,
+  pageSize = 8,
+  onPageChange,
+}) {
+  const startIdx = (currentPage - 1) * pageSize + 1;
+  const endIdx = Math.min(currentPage * pageSize, totalEntries);
+
+  const getPageNumbers = () => {
+    const pages = [];
+    if (totalPages <= 7) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i);
+    } else {
+      pages.push(1);
+      if (currentPage > 3) pages.push('...');
+      const start = Math.max(2, currentPage - 1);
+      const end = Math.min(totalPages - 1, currentPage + 1);
+      for (let i = start; i <= end; i++) {
+        if (!pages.includes(i)) pages.push(i);
+      }
+      if (currentPage < totalPages - 2) pages.push('...');
+      if (totalPages > 1) pages.push(totalPages);
+    }
+    return pages;
+  };
+
+  return (
+    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-gray-200">
+      <div className="text-sm text-gray-600">
+        Showing {startIdx}-{endIdx} of {totalEntries} entries
+      </div>
+
+      <div className="flex items-center gap-1">
+        <button
+          type="button"
+          onClick={() => onPageChange?.(currentPage - 1)}
+          disabled={currentPage <= 1}
+          className="inline-flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white"
+        >
+          <FiChevronLeft className="w-4 h-4" />
+          Previous
+        </button>
+
+        <div className="flex items-center gap-1">
+          {getPageNumbers().map((page, i) =>
+            page === '...' ? (
+              <span key={`ellipsis-${i}`} className="px-2 py-1 text-gray-500">
+                ...
+              </span>
+            ) : (
+              <button
+                key={page}
+                type="button"
+                onClick={() => onPageChange?.(page)}
+                className={`min-w-9 h-9 px-4 rounded-lg text-sm font-medium border transition-colors ${currentPage === page
+                    ? 'bg-[#005F02] text-white border-[#005F02]'
+                    : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
+                  }`}
+              >
+                {page}
+              </button>
+            )
+          )}
+        </div>
+
+        <button
+          type="button"
+          onClick={() => onPageChange?.(currentPage + 1)}
+          disabled={currentPage >= totalPages}
+          className="inline-flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white"
+        >
+          Next
+          <FiChevronRight className="w-4 h-4" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+```
+
+
+// File: src/shared/ScrollToTop.jsx
+```jsx
+// ScrollToTop.jsx
+import { useEffect } from "react";
+import { useLocation } from "react-router-dom";
+
+export default function ScrollToTop() {
+  const { pathname, hash } = useLocation();
+
+  useEffect(() => {
+    if (hash) {
+      const id = hash.replace('#', '');
+      const timer = setTimeout(() => {
+        const element = document.getElementById(id);
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth' });
+        }
+      }, 100);
+      return () => clearTimeout(timer);
+    } else {
+      window.scrollTo({ top: 0, left: 0, behavior: "smooth" });
+    }
+  }, [pathname, hash]);
+
+  return null;
+}
+```
+
+
+// File: src/shared/SearchBox.jsx
+```jsx
+import { FiSearch } from 'react-icons/fi';
+
+export default function SearchBox({ value = '', onChange, placeholder = 'Search' }) {
+  return (
+    <div className="relative flex-1 w-full sm:max-w-md">
+      <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" aria-hidden="true" />
+      <input
+        type="search"
+        value={value}
+        onChange={(e) => onChange?.(e.target.value)}
+        placeholder={placeholder}
+        aria-label={placeholder}
+        className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-900 text-base placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#005F02]/30 focus:border-[#005F02] shadow-sm transition-all"
+      />
+    </div>
+  );
+}
+```
+
+
+// File: src/shared/SortFilter.jsx
+```jsx
+import { useState, useRef, useCallback } from 'react';
+import { IoIosArrowDown } from 'react-icons/io';
+import { MdCheck } from 'react-icons/md';
+import { useClickOutside } from '../hooks/useClickOutside';
+import { getOrderFromValue, buildSortValue } from '../utils/sortUtils';
+
+const SORT_OPTIONS = [
+  { value: 'date-newest', label: 'Date (Newest)', category: 'date' },
+  { value: 'date-oldest', label: 'Date (Oldest)', category: 'date' },
+  { value: 'status',      label: 'Status',         category: 'status' },
+];
+
+export default function SortFilter({ value, onChange }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const ref = useRef(null);
+
+  useClickOutside(ref, useCallback(() => setIsOpen(false), []));
+
+  const handleSortChange = (optValue) => {
+    const opt = SORT_OPTIONS.find((o) => o.value === optValue);
+    if (opt) onChange?.(buildSortValue(opt.category, getOrderFromValue(optValue)));
+    setIsOpen(false);
+  };
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setIsOpen((o) => !o)}
+        className="inline-flex items-center text-gray-900 gap-2 px-4 py-2.5 rounded-lg text-base font-medium border border-gray-300 bg-white hover:bg-gray-50 justify-between shadow-sm transition-all"
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
+      >
+        <span>Sort By</span>
+        <IoIosArrowDown
+          className={`w-4 h-4 shrink-0 transition-transform text-gray-500 ${isOpen ? 'rotate-180' : ''}`}
+          aria-hidden="true"
+        />
+      </button>
+      {isOpen && (
+        <div className="absolute top-full left-0 mt-1 py-1 w-full min-w-40 bg-white rounded-lg border border-gray-200 shadow-lg z-10" role="listbox">
+          {SORT_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              role="option"
+              aria-selected={value === opt.value}
+              onClick={() => handleSortChange(opt.value)}
+              className="flex items-center justify-between w-full text-left px-4 py-2 text-sm hover:bg-gray-100 rounded-md"
+            >
+              <span>{opt.label}</span>
+              {value === opt.value && <MdCheck className="w-4 h-4 text-green-600" aria-hidden="true" />}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+
+// File: src/shared/StatusFilter.jsx
+```jsx
+import { useState, useRef, useCallback } from 'react';
+import { IoIosArrowDown } from 'react-icons/io';
+import { MdCheck } from 'react-icons/md';
+import { useClickOutside } from '../hooks/useClickOutside';
+
+const STATUS_OPTIONS = [
+  { value: 'all',         label: 'All Status' },
+  { value: 'active',      label: 'Active' },
+  { value: 'inactive',    label: 'Inactive' },
+  { value: 'pending',     label: 'Pending' },
+  { value: 'deactivated', label: 'Deactivated' },
+];
+
+export default function StatusFilter({ value, onChange }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const ref = useRef(null);
+
+  useClickOutside(ref, useCallback(() => setIsOpen(false), []));
+
+  return (
+    <div ref={ref} className="relative inline-block">
+      <button
+        type="button"
+        onClick={() => setIsOpen((o) => !o)}
+        className="flex items-center gap-2 px-4 py-2.5 border border-gray-300 rounded-lg bg-white text-gray-900 hover:bg-gray-50 transition-all shadow-sm"
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
+      >
+        <span className="text-base font-medium">Status</span>
+        <IoIosArrowDown
+          className={`w-4 h-4 text-gray-500 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+          aria-hidden="true"
+        />
+      </button>
+
+      {isOpen && (
+        <div
+          className="absolute top-full left-0 mt-2 w-56 bg-white border border-gray-200 rounded-lg shadow-lg z-50"
+          role="listbox"
+        >
+          {STATUS_OPTIONS.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              role="option"
+              aria-selected={value === option.value}
+              onClick={() => { onChange?.(option.value); setIsOpen(false); }}
+              className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-100 transition-colors flex items-center justify-between"
+            >
+              <span>{option.label}</span>
+              {value === option.value && <MdCheck className="w-5 h-5 text-[#005F02]" aria-hidden="true" />}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+
+================================================================================
+FOLDER: themes
+================================================================================
+
+
+// File: src/themes/global.css
+```css
+@font-face {
+    font-family: "Poppins";
+    src: url(../fonts/Poppins-Regular.ttf) format("truetype");
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: "Poppins-Bold";
+    src: url(../fonts/Poppins-Bold.ttf) format("truetype");
+    font-weight: 700;
+    font-style: normal;
+    font-display: swap;
+}
+
+@theme {
+    --font-poppins: "Poppins", sans-serif;
+}
+
+
+body {
+    font-family: var(--font-poppins);
+}
+```
+
+
+================================================================================
+FOLDER: utils
+================================================================================
+
+
+// File: src/utils/contactValidation.js
+```js
+/**
+ * Validates a Philippine mobile number (11 digits, starts with 09).
+ * @returns {string | true} error message or true if valid
+ */
+export function validateContactNumber(value, required = false) {
+  if (!value || value.trim() === '') {
+    return required ? 'Contact number is required.' : true;
+  }
+  const digits = value.replace(/\D/g, '');
+  if (digits.length !== 11) return 'Contact number must be exactly 11 digits.';
+  if (!digits.startsWith('09')) return 'Contact number must start with 09 (e.g. 09171234567).';
+  return true;
+}
+
+/** Strips non-digits and caps at 11 characters. Use as an onChange sanitizer. */
+export function sanitizeContactNumber(value) {
+  return value.replace(/\D/g, '').slice(0, 11);
+}
+```
+
+
+// File: src/utils/sortUtils.js
+```js
+export const getCategoryFromValue = (value) => {
+  if (value.includes('name')) return 'name';
+  if (value.includes('date')) return 'date';
+  if (value.includes('status')) return 'status';
+  return 'name';
+};
+
+export const getOrderFromValue = (value) =>
+  value.includes('desc') || value === 'date-oldest' ? 'desc' : 'asc';
+
+export const buildSortValue = (category, order) => {
+  if (category === 'name') return order === 'asc' ? 'name-asc' : 'name-desc';
+  if (category === 'date') return order === 'asc' ? 'date-newest' : 'date-oldest';
+  return 'status';
+};
+```
+

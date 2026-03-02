@@ -14,12 +14,14 @@ async function request(method, path, body) {
   const res = await fetch(`${API_URL}${path}`, {
     method,
     headers,
-    body: body !== undefined ? JSON.stringify(body) : undefined,
+    body: body ? JSON.stringify(body) : undefined,
   });
   const json = await res.json();
   if (!res.ok) throw new Error(json.error || `Request failed: ${res.status}`);
   return json;
 }
+
+// ── Admin API calls ──────────────────────────────────────────────────────────
 
 export const adminApi = {
   /** Fetch all users with emails merged in */
@@ -38,14 +40,10 @@ export const adminApi = {
   reactivateUser: (userId) => request('PATCH', `/api/admin/users/${userId}/reactivate`),
 
   /**
-   * Activate own profile — called by AcceptInvitation.
-   * NOTE: AcceptInvitation calls the backend directly (not through this helper)
-   * so it can inject the pre-captured token. This method is kept for completeness.
+   * Activate own profile after accepting invitation.
+   * Called by the invited user themselves — no superadmin check.
+   * Optionally pass name fields to update the profile row at the same time.
    */
-  activateProfile: (userId, { first_name, middle_name, last_name } = {}) =>
-    request('PATCH', `/api/admin/users/${userId}/activate`, {
-      first_name,
-      middle_name: middle_name || null,
-      last_name,
-    }),
+  activateProfile: (userId, nameData) =>
+    request('PATCH', `/api/admin/users/${userId}/activate`, nameData ?? {}),
 };

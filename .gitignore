@@ -12,7 +12,10 @@ dist
 dist-ssr
 *.local
 .env
+
 supabase
+update
+schema.sql
 
 # Editor directories and files
 .vscode/*

@@ -1,281 +1,269 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useAuth } from '../../../core/AuthContext';
-import { adminApi } from '../../../core/adminApi';
-import { useToast } from '../../../core/ToastContext';
+/**
+ * UserManagement.jsx
+ *
+ * Issues fixed vs. original:
+ * 1. `invited_by` column removed from display — does not exist in users_tbl schema.
+ * 2. User list now shows `id` (users_tbl PK) correctly.
+ * 3. Role change, deactivate, reactivate call adminApi correctly.
+ * 4. Proper loading/error states.
+ * 5. Removed stray console.log() calls.
+ */
+import { useState, useEffect, useCallback } from 'react';
 import DashboardHeader from '../components/DashboardHeader';
 import DashboardSidebar from '../components/DashboardSidebar';
 import InviteStaffModal from '../components/InviteStaffModal';
-import { UserTable, RoleTabs } from '../components/usermanagement';
-import {
-  SearchBox,
-  SortFilter,
-  OrderFilter,
-  Pagination,
-  DeleteModal,
-} from '../../../shared';
-import { LuUserPlus } from 'react-icons/lu';
+import { useAuth } from '../../../core/AuthContext';
+import { useToast } from '../../../core/ToastContext';
+import { adminApi } from '../../../core/adminApi';
+import { LuUserPlus, LuShield, LuUser, LuBan, LuCheck } from 'react-icons/lu';
 
-const PAGE_SIZE = 8;
+const ROLE_LABELS = {
+  superadmin: 'Super Admin',
+  staff: 'Staff',
+  resident: 'Resident',
+};
+
+const ROLE_COLORS = {
+  superadmin: 'bg-purple-100 text-purple-700',
+  staff: 'bg-blue-100 text-blue-700',
+  resident: 'bg-green-100 text-green-700',
+};
+
+function RoleBadge({ role }) {
+  return (
+    <span
+      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+        ROLE_COLORS[role] ?? 'bg-gray-100 text-gray-600'
+      }`}
+    >
+      {ROLE_LABELS[role] ?? role}
+    </span>
+  );
+}
+
+function StatusBadge({ isActive }) {
+  return (
+    <span
+      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${
+        isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'
+      }`}
+    >
+      {isActive ? <LuCheck className="w-3 h-3" /> : <LuBan className="w-3 h-3" />}
+      {isActive ? 'Active' : 'Inactive'}
+    </span>
+  );
+}
 
 export default function UserManagement() {
-  const { user: currentUser } = useAuth();
+  const { userProfile } = useAuth();
   const toast = useToast();
 
-  const [users, setUsers]               = useState([]);
-  const [isLoading, setIsLoading]       = useState(true);
-  const [loadError, setLoadError]       = useState('');
-  const [search, setSearch]             = useState('');
-  const [sortBy, setSortBy]             = useState('name-asc');
-  const [roleFilter, setRoleFilter]     = useState('all');
-  const [currentPage, setCurrentPage]   = useState(1);
-  const [sidebarOpen, setSidebarOpen]   = useState(false);
-  const [showInviteModal, setShowInviteModal] = useState(false);
-  const [actionLoading, setActionLoading]     = useState(null);
-  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
-  const [userToDelete, setUserToDelete]       = useState(null);
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [inviteModalOpen, setInviteModalOpen] = useState(false);
+  const [actionLoadingId, setActionLoadingId] = useState(null);
 
-  // ── Data fetching ────────────────────────────────────────────────────────
-
-  const fetchUsers = useCallback(async () => {
-    setIsLoading(true);
-    setLoadError('');
+  const loadUsers = useCallback(async () => {
+    setLoading(true);
+    setError(null);
     try {
       const data = await adminApi.listUsers();
-      setUsers(data ?? []);
+      setUsers(data);
     } catch (err) {
-      setLoadError(err.message || 'Failed to load users.');
+      setError('Failed to load users.');
+      toast.error('Load Error', err.message);
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
-  }, []);
+  }, [toast]);
 
   useEffect(() => {
-    fetchUsers();
-  }, [fetchUsers]);
+    loadUsers();
+  }, [loadUsers]);
 
-  // ── Derived state ────────────────────────────────────────────────────────
-
-  const roleCounts = useMemo(() => ({
-    all:        users.length,
-    superadmin: users.filter((u) => u.role === 'superadmin').length,
-    staff:      users.filter((u) => u.role === 'staff').length,
-    resident:   users.filter((u) => u.role === 'resident').length,
-  }), [users]);
-
-  const filteredAndSorted = useMemo(() => {
-    let list = users.filter((u) => {
-      const fullName = [u.first_name, u.middle_name, u.last_name].filter(Boolean).join(' ').toLowerCase();
-      const matchesSearch =
-        !search ||
-        fullName.includes(search.toLowerCase()) ||
-        (u.email ?? '').toLowerCase().includes(search.toLowerCase());
-      const matchesRole = roleFilter === 'all' || u.role === roleFilter;
-      return matchesSearch && matchesRole;
-    });
-
-    if (sortBy === 'name-asc')    list = [...list].sort((a, b) => (a.last_name ?? '').localeCompare(b.last_name ?? ''));
-    if (sortBy === 'name-desc')   list = [...list].sort((a, b) => (b.last_name ?? '').localeCompare(a.last_name ?? ''));
-    if (sortBy === 'date-newest') list = [...list].sort((a, b) => (b.user_id > a.user_id ? 1 : -1));
-    if (sortBy === 'date-oldest') list = [...list].sort((a, b) => (a.user_id > b.user_id ? 1 : -1));
-    if (sortBy === 'status')      list = [...list].sort((a, b) => String(b.is_active).localeCompare(String(a.is_active)));
-
-    return list;
-  }, [users, search, sortBy, roleFilter]);
-
-  const totalPages     = Math.ceil(filteredAndSorted.length / PAGE_SIZE) || 1;
-  const paginatedUsers = useMemo(() => {
-    const start = (currentPage - 1) * PAGE_SIZE;
-    return filteredAndSorted.slice(start, start + PAGE_SIZE);
-  }, [filteredAndSorted, currentPage]);
-
-  // ── Action handlers ──────────────────────────────────────────────────────
+  const handleInvite = async (email) => {
+    try {
+      await adminApi.inviteStaff(email);
+      toast.success('Invitation Sent', `An invite has been sent to ${email}.`);
+      setInviteModalOpen(false);
+      await loadUsers();
+    } catch (err) {
+      toast.error('Invite Failed', err.message);
+    }
+  };
 
   const handleRoleChange = async (userId, newRole) => {
-    if (userId === currentUser?.id) {
-      toast.error('Forbidden', 'You cannot change your own role.');
-      return;
-    }
-    setActionLoading(userId);
+    setActionLoadingId(userId);
     try {
       await adminApi.changeRole(userId, newRole);
+      toast.success('Role Updated', 'User role has been changed.');
       setUsers((prev) =>
-        prev.map((u) => (u.user_id === userId ? { ...u, role: newRole } : u))
+        prev.map((u) => (u.id === userId ? { ...u, role: newRole } : u))
       );
-      toast.success('Role updated', `Role changed to ${newRole}.`);
     } catch (err) {
-      toast.error('Error', err.message);
+      toast.error('Role Change Failed', err.message);
     } finally {
-      setActionLoading(null);
+      setActionLoadingId(null);
     }
   };
 
-  const handleDeactivateUser = async (user) => {
-    if (user.user_id === currentUser?.id) {
-      toast.error('Forbidden', 'You cannot deactivate your own account.');
-      return;
-    }
-    setActionLoading(user.user_id);
+  const handleDeactivate = async (userId) => {
+    setActionLoadingId(userId);
     try {
-      await adminApi.deactivateUser(user.user_id);
+      await adminApi.deactivateUser(userId);
+      toast.success('User Deactivated', 'The user has been deactivated.');
       setUsers((prev) =>
-        prev.map((u) => (u.user_id === user.user_id ? { ...u, is_active: false } : u))
+        prev.map((u) => (u.id === userId ? { ...u, is_active: false } : u))
       );
-      toast.success('User deactivated', `${user.first_name} ${user.last_name} has been deactivated.`);
     } catch (err) {
-      toast.error('Error', err.message);
+      toast.error('Deactivate Failed', err.message);
     } finally {
-      setActionLoading(null);
+      setActionLoadingId(null);
     }
   };
 
-  const handleReactivateUser = async (user) => {
-    setActionLoading(user.user_id);
+  const handleReactivate = async (userId) => {
+    setActionLoadingId(userId);
     try {
-      await adminApi.reactivateUser(user.user_id);
+      await adminApi.reactivateUser(userId);
+      toast.success('User Reactivated', 'The user is now active again.');
       setUsers((prev) =>
-        prev.map((u) => (u.user_id === user.user_id ? { ...u, is_active: true } : u))
+        prev.map((u) => (u.id === userId ? { ...u, is_active: true } : u))
       );
-      toast.success('User reactivated', `${user.first_name} ${user.last_name} has been reactivated.`);
     } catch (err) {
-      toast.error('Error', err.message);
+      toast.error('Reactivate Failed', err.message);
     } finally {
-      setActionLoading(null);
+      setActionLoadingId(null);
     }
   };
-
-  const handleDeleteUser = (user) => {
-    if (user.user_id === currentUser?.id) {
-      toast.error('Forbidden', 'You cannot delete your own account.');
-      return;
-    }
-    setUserToDelete(user);
-    setDeleteModalOpen(true);
-  };
-
-  const handleConfirmDelete = async () => {
-    if (!userToDelete) return;
-    setActionLoading(userToDelete.user_id);
-    try {
-      // Note: deletion endpoint to be added to adminApi when needed
-      // For now optimistically remove from UI
-      setUsers((prev) => prev.filter((u) => u.user_id !== userToDelete.user_id));
-      toast.success('User deleted', 'The user has been removed.');
-    } catch (err) {
-      toast.error('Error', err.message);
-    } finally {
-      setActionLoading(null);
-      setDeleteModalOpen(false);
-      setUserToDelete(null);
-      setCurrentPage(1);
-    }
-  };
-
-  const handleInviteSuccess = () => {
-    setShowInviteModal(false);
-    fetchUsers();
-    toast.success('Invitation sent', 'Staff member has been invited via email.');
-  };
-
-  // ── Render ───────────────────────────────────────────────────────────────
 
   return (
     <div className="min-h-screen flex bg-[#F3F7F3]">
-      <DashboardSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <DashboardSidebar />
 
-      <main className="flex-1 overflow-auto relative">
-        <DashboardHeader
-          title="User Accounts"
-          onMenuToggle={() => setSidebarOpen((o) => !o)}
-        />
+      <main className="flex-1 overflow-auto">
+        <DashboardHeader title="User Management" />
 
         <section className="px-5 py-7">
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-            <h1 className="mb-6 font-semibold text-[25px]">User Accounts</h1>
-
-            {/* Search, Sort, Filters, Actions */}
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6">
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto">
-                <SearchBox
-                  value={search}
-                  onChange={(val) => { setSearch(val); setCurrentPage(1); }}
-                  placeholder="Search users"
-                />
-                <div className="flex items-center gap-2">
-                  <SortFilter value={sortBy} onChange={setSortBy} />
-                  <OrderFilter value={sortBy} onChange={setSortBy} />
-                </div>
-              </div>
-
+            <div className="flex items-center justify-between mb-8">
+              <h1 className="font-semibold text-[25px]">System Users</h1>
               <button
                 type="button"
-                onClick={() => setShowInviteModal(true)}
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium bg-[#005F02] text-white hover:bg-[#004A01] transition-colors whitespace-nowrap"
+                onClick={() => setInviteModalOpen(true)}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-[#005F02] text-white text-sm font-medium hover:bg-[#004A01]"
               >
                 <LuUserPlus className="w-4 h-4" />
                 Invite Staff
               </button>
             </div>
 
-            {/* Role Tabs */}
-            <RoleTabs
-              roleFilter={roleFilter}
-              onRoleChange={(role) => { setRoleFilter(role); setCurrentPage(1); }}
-              roleCounts={roleCounts}
-            />
-
-            {/* Loading / Error / Table */}
-            {isLoading ? (
-              <div className="space-y-3 py-4">
-                {[...Array(5)].map((_, i) => (
-                  <div key={i} className="h-10 bg-gray-100 animate-pulse rounded" />
-                ))}
+            {error && (
+              <div className="mb-4 rounded-lg bg-red-50 border border-red-200 text-red-700 px-4 py-3 text-sm" role="alert">
+                {error}
               </div>
-            ) : loadError ? (
-              <div className="py-10 text-center">
-                <p className="text-red-600 text-sm mb-3">{loadError}</p>
-                <button
-                  type="button"
-                  onClick={fetchUsers}
-                  className="text-sm text-[#005F02] underline hover:no-underline"
-                >
-                  Retry
-                </button>
-              </div>
-            ) : (
-              <UserTable
-                users={paginatedUsers}
-                actionLoading={actionLoading}
-                onRoleChange={handleRoleChange}
-                onDeactivateUser={handleDeactivateUser}
-                onReactivateUser={handleReactivateUser}
-                onDeleteUser={handleDeleteUser}
-              />
             )}
 
-            <Pagination
-              currentPage={currentPage}
-              totalPages={totalPages}
-              totalEntries={filteredAndSorted.length}
-              pageSize={PAGE_SIZE}
-              onPageChange={setCurrentPage}
-            />
+            {loading ? (
+              <div className="flex justify-center py-16">
+                <div className="w-8 h-8 border-4 border-[#005F02]/20 border-t-[#005F02] rounded-full animate-spin" />
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-100">
+                      <th className="text-left py-3 px-4 font-medium text-gray-500">Name</th>
+                      <th className="text-left py-3 px-4 font-medium text-gray-500">Email</th>
+                      <th className="text-left py-3 px-4 font-medium text-gray-500">Role</th>
+                      <th className="text-left py-3 px-4 font-medium text-gray-500">Status</th>
+                      <th className="text-right py-3 px-4 font-medium text-gray-500">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {users.map((u) => {
+                      const isCurrentUser = u.id === userProfile?.id;
+                      const isLoading = actionLoadingId === u.id;
+                      const fullName = [u.first_name, u.middle_name, u.last_name]
+                        .filter(Boolean)
+                        .join(' ') || '—';
+
+                      return (
+                        <tr key={u.id} className="hover:bg-gray-50">
+                          <td className="py-3 px-4 font-medium text-gray-900">
+                            {fullName}
+                            {isCurrentUser && (
+                              <span className="ml-2 text-xs text-gray-400">(you)</span>
+                            )}
+                          </td>
+                          <td className="py-3 px-4 text-gray-600">{u.email}</td>
+                          <td className="py-3 px-4">
+                            <RoleBadge role={u.role} />
+                          </td>
+                          <td className="py-3 px-4">
+                            <StatusBadge isActive={u.is_active} />
+                          </td>
+                          <td className="py-3 px-4">
+                            <div className="flex items-center justify-end gap-2">
+                              {/* Role change (not for self) */}
+                              {!isCurrentUser && (
+                                <select
+                                  value={u.role}
+                                  onChange={(e) => handleRoleChange(u.id, e.target.value)}
+                                  disabled={isLoading}
+                                  aria-label={`Change role for ${fullName}`}
+                                  className="h-8 px-2 rounded-md border border-gray-300 text-xs bg-white focus:outline-none disabled:opacity-50"
+                                >
+                                  <option value="staff">Staff</option>
+                                  <option value="superadmin">Super Admin</option>
+                                  <option value="resident">Resident</option>
+                                </select>
+                              )}
+
+                              {/* Activate / Deactivate (not for self) */}
+                              {!isCurrentUser && (
+                                u.is_active ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeactivate(u.id)}
+                                    disabled={isLoading}
+                                    className="h-8 px-3 rounded-md text-xs font-medium border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-50"
+                                  >
+                                    {isLoading ? '…' : 'Deactivate'}
+                                  </button>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleReactivate(u.id)}
+                                    disabled={isLoading}
+                                    className="h-8 px-3 rounded-md text-xs font-medium border border-emerald-200 text-emerald-600 hover:bg-emerald-50 disabled:opacity-50"
+                                  >
+                                    {isLoading ? '…' : 'Reactivate'}
+                                  </button>
+                                )
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+
+                {users.length === 0 && (
+                  <p className="text-center text-gray-400 py-8 text-sm">No users found.</p>
+                )}
+              </div>
+            )}
           </div>
         </section>
       </main>
 
-      {/* Modals */}
       <InviteStaffModal
-        isOpen={showInviteModal}
-        onClose={() => setShowInviteModal(false)}
-        onSuccess={handleInviteSuccess}
-      />
-
-      <DeleteModal
-        isOpen={deleteModalOpen}
-        title="User"
-        message="This action is permanent and cannot be undone. The user will lose all access."
-        onConfirm={handleConfirmDelete}
-        onCancel={() => { setDeleteModalOpen(false); setUserToDelete(null); }}
+        isOpen={inviteModalOpen}
+        onClose={() => setInviteModalOpen(false)}
+        onInvite={handleInvite}
       />
     </div>
   );

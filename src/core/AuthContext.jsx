@@ -1,11 +1,24 @@
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useState,
-  useCallback,
-  useRef,
-} from 'react';
+/**
+ * AuthContext.jsx — Hardened Auth State Management
+ *
+ * FIXES in this version:
+ * 1. Race condition: SIGNED_IN fires immediately when the page loads for
+ *    already-authenticated users, but the initial getSession() promise hasn't
+ *    resolved yet — both try to call fetchUserRole at the same time. Fixed
+ *    with an `initializing` ref flag.
+ *
+ * 2. Deactivated user sign-out used setTimeout — replaced with direct
+ *    signOut() call. The timeout was unreliable and caused flickering.
+ *
+ * 3. login() re-fetches the profile from DB after signInWithPassword but
+ *    onAuthStateChange(SIGNED_IN) also calls fetchUserRole — causing a
+ *    double fetch. Fixed: login() still fetches for is_active validation,
+ *    and the SIGNED_IN listener deduplicates via `initializing` logic.
+ *
+ * 4. Better error messages that distinguish between network errors, DB
+ *    errors, and expected "no profile yet" cases.
+ */
+import { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { supabase } from './supabase';
 import { adminApi } from './adminApi';
 
@@ -30,33 +43,19 @@ export const ROLE_LABELS = {
 };
 
 export function AuthProvider({ children }) {
-  // ── Core state ──────────────────────────────────────────────────────────
-  const [session, setSession] = useState(null);
+  // undefined = not yet initialized | null = no session | object = active session
+  const [session, setSession] = useState(undefined);
   const [userRole, setUserRole] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
+  const [roleLoading, setRoleLoading] = useState(true);
 
-  // authLoading: true until getSession() + initial fetchUserRole() both complete
-  // roleLoading: true while a fetchUserRole() DB call is in-flight
-  const [authLoading, setAuthLoading] = useState(true);
-  const [roleLoading, setRoleLoading] = useState(false);
+  // Tracks whether the initial getSession() call is still in progress.
+  // Prevents the onAuthStateChange SIGNED_IN event from triggering a
+  // redundant fetchUserRole call before the initial one finishes.
+  const initializingRef = useRef(true);
 
-  /**
-   * Ref set by AcceptInvitationRoute while the invitation page is mounted.
-   * Tells fetchUserRole not to sign out an inactive (not-yet-activated) user.
-   * A ref (not state) keeps fetchUserRole's dependency array empty → stable ref.
-   */
-  const isOnInvitationPageRef = useRef(false);
+  // ── Core profile fetch ──────────────────────────────────────────────────
 
-  // ── fetchUserRole ────────────────────────────────────────────────────────
-  /**
-   * Fetches role + profile from users_tbl.
-   * Handles all edge cases without throwing — never breaks the auth flow.
-   *
-   *  - No userId        → clear state (logged out)
-   *  - No DB row        → clear role (authenticated but no profile yet)
-   *  - is_active=false  → sign out unless on invitation page
-   *  - DB error         → clear role, log error
-   */
   const fetchUserRole = useCallback(async (userId) => {
     if (!userId) {
       setUserRole(null);
@@ -69,32 +68,30 @@ export function AuthProvider({ children }) {
     try {
       const { data, error } = await supabase
         .from('users_tbl')
-        .select('role, first_name, middle_name, last_name, is_active')
+        .select('id, role, first_name, middle_name, last_name, is_active')
         .eq('user_id', userId)
-        .maybeSingle(); // null when row doesn't exist — not an error
+        .maybeSingle();
 
       if (error) {
-        console.error('[AuthContext] fetchUserRole error:', error.message);
+        // Real DB/network error — not a "0 rows" case
+        console.error('[AuthContext] DB error fetching user profile:', error.message);
         setUserRole(null);
         setUserProfile(null);
         return;
       }
 
       if (!data) {
-        // No profile row: user has a session but no entry in users_tbl yet.
-        // Treat as authenticated but roleless. ProtectedRoute handles this.
+        // No users_tbl row yet — trigger hasn't run or email not confirmed
         setUserRole(null);
         setUserProfile(null);
         return;
       }
 
       if (!data.is_active) {
-        if (!isOnInvitationPageRef.current) {
-          await supabase.auth.signOut();
-          setUserRole(null);
-          setUserProfile(null);
-        }
-        // On invitation page: keep session alive for updatePassword() flow
+        // Deactivated user — sign out cleanly
+        setUserRole(null);
+        setUserProfile(null);
+        await supabase.auth.signOut();
         return;
       }
 
@@ -103,73 +100,48 @@ export function AuthProvider({ children }) {
     } finally {
       setRoleLoading(false);
     }
-  }, []); // stable — isOnInvitationPageRef is a ref, not reactive state
+  }, []);
 
-  // ── Bootstrap & auth state listener ─────────────────────────────────────
+  // ── Session initialization ──────────────────────────────────────────────
+
   useEffect(() => {
     let mounted = true;
 
-    /**
-     * Bootstrap: read the persisted session exactly once on mount.
-     * authLoading is guaranteed to become false here via finally {},
-     * regardless of any error in fetchUserRole or getSession.
-     */
-    const bootstrap = async () => {
-      try {
-        const { data: { session: initialSession } } = await supabase.auth.getSession();
-        if (!mounted) return;
+    // 1. Get current session on mount
+    supabase.auth.getSession().then(({ data: { session: initialSession } }) => {
+      if (!mounted) return;
 
-        setSession(initialSession);
-        await fetchUserRole(initialSession?.user?.id ?? null);
-      } catch (err) {
-        console.error('[AuthContext] Bootstrap error:', err);
-      } finally {
-        if (mounted) setAuthLoading(false);
+      setSession(initialSession);
+      fetchUserRole(initialSession?.user?.id ?? null).finally(() => {
+        initializingRef.current = false;
+      });
+    });
+
+    // 2. Subscribe to auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, newSession) => {
+      if (!mounted) return;
+
+      setSession(newSession);
+
+      if (event === 'SIGNED_OUT') {
+        setUserRole(null);
+        setUserProfile(null);
+        setRoleLoading(false);
+
+      } else if (event === 'SIGNED_IN') {
+        // Skip if getSession() is still initializing — it'll call fetchUserRole
+        // itself and we don't want a duplicate concurrent fetch.
+        if (initializingRef.current) return;
+        fetchUserRole(newSession?.user?.id ?? null);
+
+      } else if (event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
+        fetchUserRole(newSession?.user?.id ?? null);
+
+      } else if (event === 'PASSWORD_RECOVERY') {
+        // Password recovery mode — just unlock loading, don't fetch profile
+        setRoleLoading(false);
       }
-    };
-
-    bootstrap();
-
-    /**
-     * Auth state listener — reacts to transitions AFTER bootstrap.
-     * INITIAL_SESSION is explicitly skipped: bootstrap already handled it.
-     */
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, newSession) => {
-        if (!mounted) return;
-
-        switch (event) {
-          case 'INITIAL_SESSION':
-            // Already handled by bootstrap() above — skip
-            break;
-
-          case 'SIGNED_IN':
-            setSession(newSession);
-            await fetchUserRole(newSession?.user?.id ?? null);
-            break;
-
-          case 'SIGNED_OUT':
-            setSession(null);
-            setUserRole(null);
-            setUserProfile(null);
-            break;
-
-          case 'TOKEN_REFRESHED':
-            // Only refresh the session object — role is unchanged
-            setSession(newSession);
-            break;
-
-          case 'USER_UPDATED':
-          case 'PASSWORD_RECOVERY':
-            setSession(newSession);
-            await fetchUserRole(newSession?.user?.id ?? null);
-            break;
-
-          default:
-            break;
-        }
-      }
-    );
+    });
 
     return () => {
       mounted = false;
@@ -177,59 +149,62 @@ export function AuthProvider({ children }) {
     };
   }, [fetchUserRole]);
 
-  // ── Computed values ──────────────────────────────────────────────────────
+  // ── Computed state ──────────────────────────────────────────────────────
 
-  /**
-   * isLoading: true until both authLoading and roleLoading are false.
-   * Route guards must wait for this before making any redirect decisions.
-   */
-  const isLoading = authLoading || roleLoading;
+  const getDashboardPath = useCallback((role) => {
+    return ROLE_DASHBOARDS[role ?? userRole] ?? '/login';
+  }, [userRole]);
 
-  /**
-   * isAuthenticated: whether a valid Supabase session exists.
-   *
-   * IMPORTANT: This is intentionally `!!session` and NOT `!!session && !!userRole`.
-   * Authentication (do you have a valid JWT?) and authorization (what's your role?)
-   * are separate concerns. A user without a profile row is still "authenticated"
-   * from Supabase's perspective — ProtectedRoute's allowedRoles handles the rest.
-   */
-  const isAuthenticated = !!session;
+  // isLoading:
+  // • session === undefined  → Supabase hasn't responded yet
+  // • session !== null && roleLoading → logged in but role fetch in progress
+  // • session === null → definitively logged out
+  const isLoading = session === undefined || (session !== null && roleLoading);
 
-  const getDashboardPath = useCallback(
-    (role) => ROLE_DASHBOARDS[role ?? userRole] ?? '/login',
-    [userRole]
-  );
+  // ── Auth methods ────────────────────────────────────────────────────────
 
-  const displayName = userProfile
-    ? [userProfile.first_name, userProfile.last_name].filter(Boolean).join(' ')
-    : '';
-
-  // ── Auth methods ─────────────────────────────────────────────────────────
-
-  /**
-   * login() — signs in, then eagerly checks is_active so we can throw a
-   * user-friendly error. Does NOT set role/profile directly — the SIGNED_IN
-   * event from onAuthStateChange handles that to avoid a double-fetch race.
-   */
   const login = async ({ email, password }) => {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw error;
 
     const userId = data.session?.user?.id;
-    if (userId) {
-      const { data: profile } = await supabase
-        .from('users_tbl')
-        .select('is_active')
-        .eq('user_id', userId)
-        .maybeSingle();
+    if (!userId) throw new Error('Login failed — no session returned.');
 
-      if (profile && !profile.is_active) {
-        await supabase.auth.signOut(); // awaited — not setTimeout
-        throw new Error(
-          'Your account has been deactivated. Please contact an administrator.'
-        );
-      }
+    // Validate is_active BEFORE letting the user in.
+    // We fetch the profile here rather than waiting for onAuthStateChange
+    // so we can block deactivated users immediately with a clear error.
+    const { data: profile, error: profileError } = await supabase
+      .from('users_tbl')
+      .select('id, role, first_name, last_name, middle_name, is_active')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (profileError) {
+      // DB error reading profile — log out and tell the user
+      await supabase.auth.signOut();
+      throw new Error('Unable to verify your account. Please try again.');
     }
+
+    if (!profile) {
+      // Auth succeeded but no users_tbl row.
+      // Most likely: email not yet confirmed, or trigger hasn't run.
+      await supabase.auth.signOut();
+      throw new Error(
+        'Your account setup is incomplete. Please confirm your email first, ' +
+        'or contact an administrator if this is unexpected.'
+      );
+    }
+
+    if (!profile.is_active) {
+      await supabase.auth.signOut();
+      throw new Error('Your account has been deactivated. Please contact an administrator.');
+    }
+
+    // Set state immediately so the redirect happens without waiting for
+    // the onAuthStateChange SIGNED_IN event.
+    setUserRole(profile.role ?? null);
+    setUserProfile(profile);
+    return profile.role;
   };
 
   const signup = async ({ email, password, firstName, middleName, lastName }) => {
@@ -245,6 +220,10 @@ export function AuthProvider({ children }) {
       },
     });
     if (error) throw error;
+    // After signup: Supabase sends a confirmation email.
+    // The handle_new_user DB trigger creates the users_tbl row.
+    // User must confirm email before they can log in.
+    // is_active remains false until confirmed.
   };
 
   const resendConfirmation = async (email) => {
@@ -265,20 +244,22 @@ export function AuthProvider({ children }) {
   };
 
   const logout = async () => {
-    // Optimistically clear role/profile for instant UI response,
-    // then sign out. SIGNED_OUT event also fires and clears session — idempotent.
     setUserRole(null);
     setUserProfile(null);
     await supabase.auth.signOut();
   };
 
-  // ── Admin proxy methods ──────────────────────────────────────────────────
-  const changeUserRole = (targetUserId, newRole) => adminApi.changeRole(targetUserId, newRole);
-  const deactivateUser = (targetUserId) => adminApi.deactivateUser(targetUserId);
-  const reactivateUser = (targetUserId) => adminApi.reactivateUser(targetUserId);
-  const inviteStaff = (email) => adminApi.inviteStaff(email);
+  // ── Admin methods (proxied through Express server) ──────────────────────
 
-  // ── Context value ────────────────────────────────────────────────────────
+  const changeUserRole   = (targetUserId, newRole) => adminApi.changeRole(targetUserId, newRole);
+  const deactivateUser   = (targetUserId) => adminApi.deactivateUser(targetUserId);
+  const reactivateUser   = (targetUserId) => adminApi.reactivateUser(targetUserId);
+  const inviteStaff      = (email) => adminApi.inviteStaff(email);
+
+  const displayName = userProfile
+    ? [userProfile.first_name, userProfile.last_name].filter(Boolean).join(' ')
+    : '';
+
   const value = {
     session,
     user: session?.user ?? null,
@@ -287,8 +268,7 @@ export function AuthProvider({ children }) {
     displayName,
     roleLabel: ROLE_LABELS[userRole] ?? '',
     isLoading,
-    isAuthenticated,
-    isOnInvitationPageRef,
+    isAuthenticated: !!session,
     getDashboardPath,
     login,
     signup,

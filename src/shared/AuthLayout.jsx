@@ -1,26 +1,42 @@
 /**
- * Split layout for Login and SignUp pages:
- * - Top half: background image with dark overlay
- * - Bottom half: light green-white background
- * - Logo, label, and form card: centered in the middle, overlapping both halves
+ * Split layout for Login and SignUp pages.
+ *
+ * BUGS FIXED:
+ * 1. `top-110`  — not a valid Tailwind class, caused the entire form to
+ *    be positioned off-screen (this was the PRIMARY reason auth pages
+ *    appeared blank/unreachable).
+ * 2. `max-w-`   — incomplete Tailwind class (missing the size value),
+ *    caused a CSS parsing warning and broke the container width.
+ * 3. `bg-linear-to-b` — not a valid Tailwind v3 class; correct class is
+ *    `bg-gradient-to-b`.
+ * 4. Layout now uses overflow-y-auto so tall forms (SignUp multi-step)
+ *    scroll properly on small screens instead of being clipped.
  */
 export default function AuthLayout({ header, children }) {
   return (
-    <div className="min-h-screen flex flex-col relative">
-      {/* Top half: background image with overlay */}
-      <div className="relative h-[60vh] min-h-[320px] bg-[url('/src/assets/images/landing-bg.png')] bg-cover bg-center">
-        <div className="absolute inset-0 bg-linear-to-b from-black/40 via-emerald-950/70 to-emerald-980/80" />
+    <div className="min-h-screen relative">
+      {/* Top section: background image */}
+      <div
+        className="fixed inset-0 bg-[url('/src/assets/images/landing-bg.png')] bg-cover bg-center"
+        aria-hidden="true"
+      >
+        <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-emerald-950/75 to-emerald-950/90" />
       </div>
 
-      {/* Bottom half: light green-white background */}
-      <div className="flex-1 min-h-[50vh] bg-[#f7faf7]" />
-
-      {/* Logo, label, and form card: centered in the middle, overlapping the split */}
-      <div className="absolute left-1/2 top-110 -translate-x-1/2 -translate-y-1/2 w-full max-w- z-20 flex flex-col items-center">
-        <div className="flex flex-col items-center mb-6">
+      {/* Scrollable content layer */}
+      <div className="relative z-10 min-h-screen flex flex-col items-center justify-start px-4 py-12 overflow-y-auto">
+        {/* Logo / header */}
+        <div className="flex flex-col items-center mb-6 w-full max-w-lg">
           {header}
         </div>
-        {children}
+
+        {/* Form card */}
+        <div className="w-full max-w-lg">
+          {children}
+        </div>
+
+        {/* Bottom padding so content isn't flush against bottom on short screens */}
+        <div className="h-8 flex-shrink-0" />
       </div>
     </div>
   );

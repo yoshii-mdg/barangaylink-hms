@@ -8,12 +8,7 @@ const options = {
   plugins: {
     legend: {
       position: 'bottom',
-      labels: {
-        color: '#374151',
-        font: { size: 12 },
-        usePointStyle: true,
-        pointStyle: 'circle',
-      },
+      labels: { color: '#374151', font: { size: 12 }, usePointStyle: true, pointStyle: 'circle' },
     },
     title: {
       display: true,
@@ -24,49 +19,37 @@ const options = {
   },
 };
 
-const getData = (filters) => {
-  // Gender distribution typically stays relatively stable, but can vary slightly by year
-  const year = parseInt(filters?.year || new Date().getFullYear(), 10);
-  const yearOffset = year - new Date().getFullYear();
-  const baseMale = 49.6;
-  const baseFemale = 50.4;
-  const male = Math.max(45, Math.min(55, baseMale + yearOffset * 0.1));
-  const female = 100 - male;
-  
-  return {
-    labels: ['Male', 'Female'],
-    datasets: [
-      {
-        data: [male, female],
-        backgroundColor: ['#22c55e', '#86efac'],
-        borderColor: ['#22c55e', '#86efac'],
-        borderWidth: 2,
-        hoverOffset: 4,
-      },
-    ],
-  };
-};
-
-export default function GenderDistribution({ filters }) {
+export default function GenderDistribution({ data = [], loading = false }) {
   const canvasRef = useRef(null);
   const chartRef = useRef(null);
 
   useEffect(() => {
-    if (!canvasRef.current) return;
+    if (loading || !canvasRef.current || data.length === 0) return;
     const ctx = canvasRef.current.getContext('2d');
     if (chartRef.current) chartRef.current.destroy();
-    const chartData = getData(filters);
+
+    const labels = data.map((d) => d.gender);
+    const counts = data.map((d) => Number(d.count));
+
     chartRef.current = new Chart(ctx, {
       type: 'doughnut',
-      data: chartData,
+      data: {
+        labels,
+        datasets: [{
+          data: counts,
+          backgroundColor: ['#22c55e', '#86efac'],
+          borderColor: ['#22c55e', '#86efac'],
+          borderWidth: 2,
+          hoverOffset: 4,
+        }],
+      },
       options,
     });
     return () => chartRef.current?.destroy();
-  }, [filters]);
+  }, [data, loading]);
 
-  return (
-    <div className="h-[280px] w-full relative">
-      <canvas ref={canvasRef} />
-    </div>
-  );
+  if (loading) return <div className="h-[280px] w-full bg-gray-100 rounded animate-pulse" />;
+  if (data.length === 0) return <div className="h-[280px] w-full flex items-center justify-center text-gray-400 text-sm">No gender data available.</div>;
+
+  return <div className="h-[280px] w-full relative"><canvas ref={canvasRef} /></div>;
 }

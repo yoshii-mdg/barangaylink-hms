@@ -1,18 +1,22 @@
 import { useMemo } from 'react';
 import { IoLocationOutline } from 'react-icons/io5';
 import { BARANGAY, STA_LUCIA_STREETS, SITIO_STREET_MAP } from '../../../../../core/constants';
-import { FormSelect } from '../../../../../shared';
+import { FormSelect, FieldError } from '../../../../../shared';
 import { useSitios } from '../../../../../hooks/queries/dashboard/useSitios';
 
 const inputClass =
   'w-full px-4 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-900 text-base placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#8C0B1A]/30 focus:border-[#8C0B1A]';
 
+const errorInputClass =
+  'w-full px-4 py-2.5 rounded-lg border border-red-400 bg-red-50/30 text-gray-900 text-base placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-400/30 focus:border-red-400';
+
 const lockedInputClass =
   'w-full px-4 py-2.5 rounded-lg border border-gray-200 bg-gray-50 text-gray-500 text-base cursor-not-allowed select-none';
 
-export default function AddressInformationForm({ value = {}, onChange }) {
+export default function AddressInformationForm({ value = {}, onChange, errors = {} }) {
   const update = (field, val) => onChange?.({ ...value, [field]: val });
   const { data: sitioOptions = [], isLoading: sitiosLoading } = useSitios();
+  const cls = (field) => (errors[field] ? errorInputClass : inputClass);
 
   const filteredStreets = useMemo(() => {
     if (!value.purok || !SITIO_STREET_MAP[value.purok]) return STA_LUCIA_STREETS;
@@ -24,7 +28,7 @@ export default function AddressInformationForm({ value = {}, onChange }) {
     
     // Auto-select Sitio if street belongs to specific Sitio(s)
     const possibleSitioNames = Object.entries(SITIO_STREET_MAP)
-      .filter(([_, streets]) => streets.includes(streetVal))
+      .filter(([, streets]) => streets.includes(streetVal))
       .map(([name]) => name);
 
     if (possibleSitioNames.length > 0) {
@@ -53,7 +57,8 @@ export default function AddressInformationForm({ value = {}, onChange }) {
           <label className="text-sm font-medium text-gray-700 mb-1.5 sm:min-h-[40px] flex items-end">
             <span>House No., block, lot, apt, suite, unit, building, floor, etc: <span className="text-red-500">*</span></span>
           </label>
-          <input type="text" value={value.houseNo ?? ''} onChange={(e) => update('houseNo', e.target.value)} className={inputClass} placeholder="e.g. Blk 1 Lot 2, Phase 3" required />
+          <input type="text" value={value.houseNo ?? ''} onChange={(e) => update('houseNo', e.target.value)} className={cls('houseNo')} placeholder="e.g. Blk 1 Lot 2, Phase 3" required />
+          <FieldError message={errors.houseNo} />
         </div>
         <div className="flex flex-col">
           <label className="text-sm font-medium text-gray-700 mb-1.5 sm:min-h-[40px] flex items-end">
@@ -64,13 +69,14 @@ export default function AddressInformationForm({ value = {}, onChange }) {
             list="sta-lucia-streets" 
             value={value.street ?? ''} 
             onChange={(e) => handleStreetChange(e.target.value)} 
-            className={inputClass} 
+            className={cls('street')} 
             placeholder="e.g. J.P. Rizal St." 
             required 
           />
           <datalist id="sta-lucia-streets">
             {filteredStreets.map(s => <option key={s} value={s} />)}
           </datalist>
+          <FieldError message={errors.street} />
         </div>
       </div>
 
@@ -95,6 +101,7 @@ export default function AddressInformationForm({ value = {}, onChange }) {
             options={sitioOptions}
             required
           />
+          <FieldError message={errors.purokId} />
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1.5">Barangay</label>
@@ -104,4 +111,3 @@ export default function AddressInformationForm({ value = {}, onChange }) {
     </div>
   );
 }
-

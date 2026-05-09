@@ -1,7 +1,7 @@
 import { useRef } from 'react';
 import { PiIdentificationCardLight } from 'react-icons/pi';
 import { HiOutlineArrowUpTray } from 'react-icons/hi2';
-import { FormSelect } from '../../../../../shared';
+import { FormSelect, FieldError } from '../../../../../shared';
 import { RESIDENT_STATUS_FORM_OPTIONS } from '../../../../../core/constants';
 
 const ID_TYPE_OPTIONS = [
@@ -28,11 +28,15 @@ const ACCEPT_TYPES = 'image/jpeg,image/png,image/webp,application/pdf';
 const inputClass =
   'w-full px-4 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-900 text-base placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#8C0B1A]/30 focus:border-[#8C0B1A]';
 
-export default function ValidIdForm({ value = {}, onChange, status = 'active', onStatusChange }) {
+const errorInputClass =
+  'w-full px-4 py-2.5 rounded-lg border border-red-400 bg-red-50/30 text-gray-900 text-base placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-400/30 focus:border-red-400';
+
+export default function ValidIdForm({ value = {}, onChange, status = 'active', onStatusChange, errors = {} }) {
   const fileInputRef = useRef(null);
   const signatureInputRef = useRef(null);
 
   const update = (field, val) => onChange?.({ ...value, [field]: val });
+  const cls = (field) => (errors[field] ? errorInputClass : inputClass);
 
   const handleFile = (file) => {
     if (!file) return;
@@ -87,8 +91,9 @@ export default function ValidIdForm({ value = {}, onChange, status = 'active', o
             value={value.validIdNumber ?? ''}
             onChange={(e) => update('validIdNumber', e.target.value)}
             placeholder="Enter ID number"
-            className={inputClass}
+            className={cls('validIdNumber')}
           />
+          <FieldError message={errors.validIdNumber} />
         </div>
 
         <div>
@@ -113,7 +118,7 @@ export default function ValidIdForm({ value = {}, onChange, status = 'active', o
           onKeyDown={(e) => e.key === 'Enter' && fileInputRef.current?.click()}
           onDragOver={(e) => e.preventDefault()}
           onDrop={onDrop}
-          className="flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 hover:border-[#8C0B1A]/50 hover:bg-[#F1F7F2] transition-colors cursor-pointer py-7 px-4 text-center"
+          className={`flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed ${errors.validIdFile ? 'border-red-400 bg-red-50/30' : 'border-gray-300 bg-gray-50'} hover:border-[#8C0B1A]/50 hover:bg-[#F1F7F2] transition-colors cursor-pointer py-7 px-4 text-center`}
         >
           <HiOutlineArrowUpTray className="w-6 h-6 text-gray-400" />
           {fileName ? (
@@ -132,6 +137,7 @@ export default function ValidIdForm({ value = {}, onChange, status = 'active', o
         <p className="mt-1.5 text-xs text-gray-400">
           Clear photo showing ID details and address
         </p>
+        <FieldError message={errors.validIdFile} />
 
         <input
           ref={fileInputRef}
@@ -152,7 +158,7 @@ export default function ValidIdForm({ value = {}, onChange, status = 'active', o
           tabIndex={0}
           onClick={() => signatureInputRef.current?.click()}
           onKeyDown={(e) => e.key === 'Enter' && signatureInputRef.current?.click()}
-          className="flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 hover:border-[#8C0B1A]/50 hover:bg-[#F1F7F2] transition-colors cursor-pointer py-4 px-4 text-center"
+          className={`flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed ${errors.signatureFile ? 'border-red-400 bg-red-50/30' : 'border-gray-300 bg-gray-50'} hover:border-[#8C0B1A]/50 hover:bg-[#F1F7F2] transition-colors cursor-pointer py-4 px-4 text-center`}
         >
           <HiOutlineArrowUpTray className="w-5 h-5 text-gray-400" />
           {signatureName ? (
@@ -164,6 +170,7 @@ export default function ValidIdForm({ value = {}, onChange, status = 'active', o
         <p className="mt-1.5 text-xs text-gray-400 italic">
           Clear handwritten signature on a plain white background
         </p>
+        <FieldError message={errors.signatureFile} />
 
         <input
           ref={signatureInputRef}

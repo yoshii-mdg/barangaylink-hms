@@ -1,5 +1,5 @@
 import { FiUser } from 'react-icons/fi';
-import { FormSelect } from '../../../../../shared';
+import { FormSelect, FieldError } from '../../../../../shared';
 import {
   SEX_OPTIONS,
   CIVIL_STATUS_OPTIONS,
@@ -10,11 +10,15 @@ import {
 const inputClass =
   'w-full px-4 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-900 text-base placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#8C0B1A]/30 focus:border-[#8C0B1A]';
 
+const errorInputClass =
+  'w-full px-4 py-2.5 rounded-lg border border-red-400 bg-red-50/30 text-gray-900 text-base placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-400/30 focus:border-red-400';
+
 // Age group is auto-computed by a DB trigger (fn_compute_age_group)
 // from date_of_birth on INSERT/UPDATE — no client-side logic needed.
 
-export default function PersonalInformationForm({ value = {}, onChange }) {
+export default function PersonalInformationForm({ value = {}, onChange, errors = {} }) {
   const update = (field, val) => onChange?.({ ...value, [field]: val });
+  const cls = (field) => (errors[field] ? errorInputClass : inputClass);
 
   return (
     <div className="space-y-4">
@@ -31,21 +35,25 @@ export default function PersonalInformationForm({ value = {}, onChange }) {
           <label className="block text-sm font-medium text-gray-700 mb-1.5">
             Last Name <span className="text-red-500">*</span>
           </label>
-          <input type="text" value={value.lastName ?? ''} onChange={(e) => update('lastName', e.target.value)} className={inputClass} required />
+          <input type="text" value={value.lastName ?? ''} onChange={(e) => update('lastName', e.target.value)} className={cls('lastName')} required />
+          <FieldError message={errors.lastName} />
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1.5">
             First Name <span className="text-red-500">*</span>
           </label>
-          <input type="text" value={value.firstName ?? ''} onChange={(e) => update('firstName', e.target.value)} className={inputClass} required />
+          <input type="text" value={value.firstName ?? ''} onChange={(e) => update('firstName', e.target.value)} className={cls('firstName')} required />
+          <FieldError message={errors.firstName} />
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1.5">Middle Name</label>
-          <input type="text" value={value.middleName ?? ''} onChange={(e) => update('middleName', e.target.value)} className={inputClass} />
+          <input type="text" value={value.middleName ?? ''} onChange={(e) => update('middleName', e.target.value)} className={cls('middleName')} />
+          <FieldError message={errors.middleName} />
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1.5">Suffix</label>
-          <input type="text" value={value.suffix ?? ''} onChange={(e) => update('suffix', e.target.value)} placeholder="e.g. Jr., Sr." className={inputClass} />
+          <input type="text" value={value.suffix ?? ''} onChange={(e) => update('suffix', e.target.value)} placeholder="e.g. Jr., Sr." className={cls('suffix')} />
+          <FieldError message={errors.suffix} />
         </div>
       </div>
 
@@ -55,17 +63,20 @@ export default function PersonalInformationForm({ value = {}, onChange }) {
           <label className="block text-sm font-medium text-gray-700 mb-1.5">
             Birthdate <span className="text-red-500">*</span>
           </label>
-          <input type="date" value={value.birthdate ?? ''} onChange={(e) => update('birthdate', e.target.value)} className={inputClass} required />
+          <input type="date" value={value.birthdate ?? ''} onChange={(e) => update('birthdate', e.target.value)} className={cls('birthdate')} required />
+          <FieldError message={errors.birthdate} />
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1.5">
             Sex <span className="text-red-500">*</span>
           </label>
           <FormSelect placeholder="Sex" value={value.gender ?? ''} onChange={(val) => update('gender', val)} options={SEX_OPTIONS} />
+          <FieldError message={errors.gender} />
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1.5">Contact Number</label>
-          <input type="text" value={value.contactNumber ?? ''} onChange={(e) => update('contactNumber', e.target.value)} placeholder="09XXXXXXXXX" className={inputClass} />
+          <input type="text" value={value.contactNumber ?? ''} onChange={(e) => update('contactNumber', e.target.value)} placeholder="09XXXXXXXXX" className={cls('contactNumber')} />
+          <FieldError message={errors.contactNumber} />
         </div>
       </div>
 
@@ -79,13 +90,15 @@ export default function PersonalInformationForm({ value = {}, onChange }) {
           <label className="block text-sm font-medium text-gray-700 mb-1.5">
             Place of Birth <span className="text-red-500">*</span>
           </label>
-          <input type="text" value={value.placeOfBirth ?? ''} onChange={(e) => update('placeOfBirth', e.target.value)} className={inputClass} />
+          <input type="text" value={value.placeOfBirth ?? ''} onChange={(e) => update('placeOfBirth', e.target.value)} className={cls('placeOfBirth')} />
+          <FieldError message={errors.placeOfBirth} />
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1.5">
             Nationality <span className="text-red-500">*</span>
           </label>
           <FormSelect placeholder="Nationality" value={value.nationality ?? 'Filipino'} onChange={(val) => update('nationality', val)} options={NATIONALITIES} />
+          <FieldError message={errors.nationality} />
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1.5">Blood Type</label>
@@ -105,7 +118,8 @@ export default function PersonalInformationForm({ value = {}, onChange }) {
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1.5">Email</label>
-          <input type="email" value={value.email ?? ''} onChange={(e) => update('email', e.target.value)} placeholder="email@example.com" className={inputClass} />
+          <input type="email" value={value.email ?? ''} onChange={(e) => update('email', e.target.value)} placeholder="email@example.com" className={cls('email')} />
+          <FieldError message={errors.email} />
         </div>
       </div>
 
@@ -117,4 +131,3 @@ export default function PersonalInformationForm({ value = {}, onChange }) {
     </div>
   );
 }
-

@@ -5,6 +5,9 @@ import AddressInformationForm from './AddressInformationForm';
 import ValidIdForm from './ValidIdForm';
 import SectoralStatusForm from './SectoralStatusForm';
 import { BARANGAY } from '../../../../../core/constants';
+import { validateResidentForm } from '../../../../../core/validation/residentValidation';
+import { sanitizeFormData } from '../../../../../core/validation/sanitize';
+import toast from 'react-hot-toast';
 
 const emptyForm = {
   personal: {
@@ -97,6 +100,20 @@ function buildEditForm(raw) {
   };
 }
 
+/**
+ * Flatten errors from "section.field" → a nested shape { personal: { lastName: msg }, ... }
+ */
+function nestErrors(flatErrors) {
+  const nested = { personal: {}, address: {}, validId: {} };
+  for (const [key, msg] of Object.entries(flatErrors)) {
+    const [section, field] = key.split('.');
+    if (nested[section]) {
+      nested[section][field] = msg;
+    }
+  }
+  return nested;
+}
+
 export default function ResidentAddEdit({ isOpen, onClose, onSubmit, initialData = null, mode = 'add' }) {
   const raw = initialData?._raw ?? null;
 
@@ -107,9 +124,20 @@ export default function ResidentAddEdit({ isOpen, onClose, onSubmit, initialData
   );
 
   const [formData, setFormData] = useState(getInitialFormData);
-  const panelRef = useRef(null);
+  const [errors, setErrors]     = useState({ personal: {}, address: {}, validId: {} });
+  const panelRef  = useRef(null);
+  const scrollRef = useRef(null);
 
   useEffect(() => { setFormData(getInitialFormData); }, [getInitialFormData]);
+
+  // Clear specific section errors when user edits that section
+  const handleSectionChange = (section, value) => {
+    setFormData((d) => ({ ...d, [section]: value }));
+    // Clear errors for the changed section so they don't persist after correction
+    if (errors[section] && Object.keys(errors[section]).length > 0) {
+      setErrors((prev) => ({ ...prev, [section]: {} }));
+    }
+  };
 
   useEffect(() => {
     const onKey = (e) => { if (e.key === 'Escape') onClose?.(); };
@@ -121,11 +149,27 @@ export default function ResidentAddEdit({ isOpen, onClose, onSubmit, initialData
     if (panelRef.current && !panelRef.current.contains(e.target)) onClose?.();
   };
 
-  const handleClear = () => setFormData(emptyForm);
+  const handleClear = () => {
+    setFormData(emptyForm);
+    setErrors({ personal: {}, address: {}, validId: {} });
+  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    const { personal, address, sectoral, identification, validId } = formData;
+
+    // ── Validate ─────────────────────────────────────────────
+    const result = validateResidentForm(formData);
+    if (!result.success) {
+      setErrors(nestErrors(result.errors));
+      toast.error('Please fix the highlighted errors before submitting.');
+      // Scroll to the top of the form so the user sees the first error
+      scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+
+    // ── Sanitize ─────────────────────────────────────────────
+    const clean = sanitizeFormData(formData);
+    const { personal, address, sectoral, identification, validId } = clean;
 
     onSubmit?.({
       // Personal
@@ -169,7 +213,10 @@ export default function ResidentAddEdit({ isOpen, onClose, onSubmit, initialData
       signatureFile: validId.signatureFile ?? null,
     });
 
-    if (mode === 'add') setFormData(emptyForm);
+    if (mode === 'add') {
+      setFormData(emptyForm);
+      setErrors({ personal: {}, address: {}, validId: {} });
+    }
     onClose?.();
   };
 
@@ -199,14 +246,16 @@ export default function ResidentAddEdit({ isOpen, onClose, onSubmit, initialData
         </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
-          <div className="flex-1 overflow-y-auto px-6 py-6 space-y-8">
+          <div ref={scrollRef} className="flex-1 overflow-y-auto px-6 py-6 space-y-8">
             <PersonalInformationForm
               value={formData.personal}
-              onChange={(v) => setFormData((d) => ({ ...d, personal: v }))}
+              errors={errors.personal}
+              onChange={(v) => handleSectionChange('personal', v)}
             />
             <AddressInformationForm
               value={formData.address}
-              onChange={(v) => setFormData((d) => ({ ...d, address: v }))}
+              errors={errors.address}
+              onChange={(v) => handleSectionChange('address', v)}
             />
             <SectoralStatusForm
               value={formData.sectoral}
@@ -215,7 +264,8 @@ export default function ResidentAddEdit({ isOpen, onClose, onSubmit, initialData
             <ValidIdForm
               value={formData.validId}
               status={formData.identification.status}
-              onChange={(v) => setFormData((d) => ({ ...d, validId: v }))}
+              errors={errors.validId}
+              onChange={(v) => handleSectionChange('validId', v)}
               onStatusChange={(val) =>
                 setFormData((d) => ({
                   ...d,
@@ -255,4 +305,3 @@ export default function ResidentAddEdit({ isOpen, onClose, onSubmit, initialData
     </div>
   );
 }
-
